@@ -51,10 +51,16 @@ class initialFunc(object):
         dx = self.grid.deltaX
         primvars = np.zeros((self.model.Nprims, x.shape[0], y.shape[0]))
         
+        
+        # Discontinuous in x-direction
         for i, var in enumerate(primvars):
             for j in range(y.shape[0]):
-                tmp = np.where(x<=0, self.primL[i], self.primR[i])
-                var[:, j] = tmp
+                var[:, j] = np.where(x<=0, self.primL[i], self.primR[i])
+
+        # Discontinuous in y-direction
+#        for i, var in enumerate(primvars):
+#            for j in range(x.shape[0]):
+#                var[j, :] = np.where(y<=0, self.primL[i], self.primR[i])
 
 
         self.prims = primvars
