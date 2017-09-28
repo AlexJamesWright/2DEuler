@@ -196,5 +196,17 @@ class simulation(object):
             plt.legend(loc='lower center', fontsize=10)
 #            py.savefig('Figures/GR2MHD{}.pdf'.format(self.primLabels[i]))
             plt.show()
-
+            
+    def plotPrimHeatmaps(self):
+        Ng = self.cells.Nghosts
+        xs, ys = self.cells.realCoordinates()
+        for i in range(self.prims.shape[0]):
+            plt.figure()
+            plotPrims = self.prims[i, Ng:-Ng, Ng:-Ng]
+            plt.imshow(plotPrims, cmap='hot', interpolation='nearest')
+            plt.title(r'Time Evolution for {}: $t = {}$'.format(self.primLabels[i], self.t))
+            plt.xlabel(r'$x$')
+            plt.ylabel(r'$y$')
+            plt.legend()
+            plt.show()
 
