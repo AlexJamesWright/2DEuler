@@ -68,16 +68,13 @@ def RK3(simulation, q):
         Third order accurate in time
     """
     dt = simulation.deltaT
-    print("Arg1:")
     arg1 = simulation.F(q, simulation)
     p1 = q - dt * arg1
     p1 = simulation.bcs(p1, simulation.cells)
     simulation.p1 = p1
-    print("Arg2:")
     arg2 = simulation.F(p1, simulation)
     p2 = 0.25 * (3 * q + p1 - dt * arg2)
     p2 = simulation.bcs(p2, simulation.cells)
-    print("Arg3:")
     arg3 = simulation.F(p2, simulation)
 
     return (1/3) * (q + 2 * p2 - 2 * dt * arg3)
