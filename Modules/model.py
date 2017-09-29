@@ -1,6 +1,9 @@
 import numpy as np
-from scipy.optimize import newton
+from scipy.optimize import newton, brentq
 from weno import weno_upwind
+import warnings
+
+warnings.filterwarnings('ignore', 'The iteration is not making good progress')
 
 class eulerGammaLawClass(object):
     def __init__(self, grid=None, g=1.4):
@@ -161,10 +164,10 @@ class eulerGammaLawClass(object):
         alpha = 1
         aux = np.zeros((self.Naux, q.shape[1], q.shape[2]))
 
-        def residual(p, i, j):
+        def residual(p, i, j, sign=1):
             D, Sx, Sy, tau = q[:, i, j]
             if p < 0:
-                return 1e6
+                return sign*1e6
             else:
                 x = tau + p + D
                 vsq = (Sx**2 + Sy**2) / x**2
@@ -174,11 +177,39 @@ class eulerGammaLawClass(object):
                 e = h - 1 - p/rho
                 pstar = rho * e * (self.g - 1)
                 
+                if vsq > 1 or W<1 or rho<0 or e<0:
+                    return sign*1e6
+                
                 return p - pstar
+            
             
         for i in range(q.shape[1]):
             for j in range(q.shape[2]):
-                p = newton(residual, simulation.prims[3, i, j], args=(i, j))
+                
+                ###################
+                ## Newton Method ##
+                ###################
+                try:
+                    p = newton(residual, simulation.prims[3, i, j], args=(i, j))
+                except RuntimeError:
+                    ###################
+                    ## BrentQ method ##
+                    ###################
+                    if np.allclose(q[1], 0):
+                        pmin = 0.1 * (self.g - 1) * q[3, i, j]
+                        pmax = 10 * (self.g - 1) * q[3, i, j]
+                    else:
+                        pmin = 0.01 * max(np.sqrt(q[1, i, j]**2+q[2, i, j]**2) - q[3, i, j] - q[0, i, j] + 1e-10, 0)
+                        pmax = 10 * (self.g - 1) * q[3, i, j]
+                    
+                    try:
+                        p = brentq(residual, pmin, pmax, args=(i, j))
+                    except ValueError:
+                        try:
+                            p = brentq(residual, pmin, pmax, args=(i, j, -1))
+                        except ValueError:
+                            p = pmin + 1e10
+                            print("Major CHEATTTT")
                 
                 D, Sx, Sy, tau = q[:, i, j]
                 prims[3, i, j] = p
@@ -197,7 +228,7 @@ class eulerGammaLawClass(object):
 
         return prims, aux, alpha
 
-    def getConsFromPrims(self, prims, dx):
+    def getConsFromPrims(self, prims):
         rho, ux, uy, p = prims
         vsq = ux**2 + uy**2
         W = 1 / np.sqrt(1 - vsq)
