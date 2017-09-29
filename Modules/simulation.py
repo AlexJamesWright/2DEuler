@@ -148,9 +148,9 @@ class simulation(object):
 
 
 
-
-    # Plotting Tools
-
+    ################################################################
+    ###################     Plotting Tools     #####################
+    ################################################################
     def plotConservedVars(self):
         """
         Plots the final field for the conserved variables of the system
@@ -209,4 +209,41 @@ class simulation(object):
             plt.ylabel(r'$y$')
             plt.legend()
             plt.show()
+            
+    def plotPrimSurface(self):
+        
+        from mpl_toolkits.mplot3d import Axes3D
+        from matplotlib import cm
+        from matplotlib.ticker import LinearLocator
+        
+        for i in range(self.prims.shape[0]):
+            Ng = self.cells.Nghosts
+            xs, ys = self.cells.realCoordinates()
+            var = self.prims[i, Ng:-Ng, Ng:-Ng]
+            fig = plt.figure()
+            ax = fig.gca(projection='3d')
+            x, y = np.meshgrid(xs, ys)
+            surf = ax.plot_surface(x, y, var, linewidth=0, cmap=cm.coolwarm)
+            fig.colorbar(surf, shrink=0.5, aspect=5)
+            ax.w_zaxis.set_major_locator(LinearLocator(6))
+            plt.xlabel(r'$x$')
+            plt.ylabel(r'$y$')
+            plt.title(r'Solution for {}'.format(self.primLabels[i]))
+            plt.show()
 
+    def plotLogDensity(self):
+        
+        from mpl_toolkits.mplot3d import Axes3D
+        from matplotlib import cm
+        from matplotlib.ticker import LinearLocator
+        
+        Ng = self.cells.Nghosts
+        xs, ys = self.cells.realCoordinates()
+        var = np.log10(self.prims[0, Ng:-Ng, Ng:-Ng])
+        fig = plt.figure()
+        surf = plt.imshow(var, cmap=cm.coolwarm)
+        fig.colorbar(surf, shrink=0.5, aspect=5)
+        plt.xlabel(r'$x$')
+        plt.ylabel(r'$y$')
+        plt.title(r'Solution for {}'.format(self.primLabels[0]))
+        plt.show()
