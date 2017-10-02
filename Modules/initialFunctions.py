@@ -97,9 +97,30 @@ class initialFunc(object):
         cons, self.aux, alpha = self.model.getConsFromPrims(prims)
         return cons
     
+    
+    
+    def OTVortex(self):
+        assert(self.grid.xmin == 0.0 and self.grid.xmax == 1.0), "X E [0, 1]"
+        assert(self.grid.ymin == 0.0 and self.grid.ymax == 1.0), "Y E [0, 1]"
+    
+        x, y = self.grid.coordinates()
+        prims = np.zeros((self.model.Nprims, x.shape[0], y.shape[0]))
+        
+        prims[0, :, :] = self.model.g ** 2
+        prims[4, :, :] = self.model.g
+        
+        for i, xelem in enumerate(x):
+            prims[2, i, :] = 0.5*np.sin(2 * np.pi * xelem)
+            prims[6, i, :] = np.sin(4 * np.pi * xelem)
+            
+        for j, yelem in enumerate(y):
+            prims[1, :, j] = - 0.5*np.sin(2 * np.pi * yelem)
+            prims[5, :, j] = - np.sin(2 * np.pi * yelem)
 
-
-
+        self.prims = prims
+        cons, self.aux, alpha = self.model.getConsFromPrims(prims)
+        
+        return cons
 
 
 
