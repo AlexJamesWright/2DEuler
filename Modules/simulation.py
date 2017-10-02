@@ -200,12 +200,13 @@ class simulation(object):
         Ng = self.cells.Nghosts
         xs, ys = self.cells.realCoordinates()
         for i in range(self.prims.shape[0]):
-            plt.figure()
+            fig = plt.figure()
             plotPrims = self.prims[i, Ng:-Ng, Ng:-Ng]
-            plt.imshow(plotPrims, cmap='hot', interpolation='nearest')
+            surf = plt.imshow(plotPrims, cmap='hot', interpolation='nearest')
             plt.title(r'Time Evolution for {}: $t = {}$'.format(self.primLabels[i], self.t))
             plt.xlabel(r'$x$')
             plt.ylabel(r'$y$')
+            fig.colorbar(surf, shrink=0.5, aspect=5)
             plt.legend()
             plt.show()
             
