@@ -8,7 +8,7 @@ script to test, play, and explore the functionalily of simulation.py
 from simulation import simulation
 from initialFunctions import initialFunc
 from cells import cells
-from model import eulerGammaLawClass
+from model import relEulerGammaLawClass
 from timeEv import RK3
 from boundaryConditions import outflow
 from fluxApprox import fluxSplitting
@@ -21,14 +21,14 @@ if __name__ == '__main__':
     timeStart = time.time()
 
     # Set up problem
-    grid = cells(20, 20, -0.5, 0.5, -0.5, 0.5)
-    model = eulerGammaLawClass(grid=grid, g=5/3)
+    grid = cells(300, 300, -0.5, 0.5, -0.5, 0.5)
+    model = relEulerGammaLawClass(grid=grid, g=5/3)
     source = sources(noSource, tau=None)
     # Set initial state
-    primL = np.array([1, 0, 0, 1])
+    primL = np.array([1, 0, 0, 100])
     primR = np.array([0.125, 0, 0, 0.1])
     initFuncObj = initialFunc(grid, model, source.tau, primL, primR)
-    initFunc = initFuncObj.RiemannProbGeneral
+    initFunc = initFuncObj.Migone
 
 
     # Set up simulation
@@ -38,7 +38,7 @@ if __name__ == '__main__':
 
     print("Running simulation")
     sim.runSim(0.1)
-    sim.plotPrimHeatmaps() 
+    sim.plotLogDensity() 
 
 
     timeTotal = time.time() - timeStart
