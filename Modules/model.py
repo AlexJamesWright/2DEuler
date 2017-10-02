@@ -36,14 +36,13 @@ class relEulerGammaLawClass(object):
         self.Nvars = 4
         self.Nprims = 4
         self.Naux = 3
-        self.fluxX = self.fluxFuncX
-        self.fluxY = self.fluxFuncY
+        self.flux = self.fluxFunc
         self.modA = np.sqrt(self.g)         # |A| for Roe's method
 
 
 
 
-    def fluxFuncX(self, q, simulation, order=2):
+    def fluxFunc(self, q, simulation, direction, order=2):
         """
         Formula of the flux function, using the jacobian of the system
 
@@ -53,6 +52,8 @@ class relEulerGammaLawClass(object):
             (Nvars, number_of_cells) Value of the field in repective cells
         simulation: object
             The class containing all the data regarding the simulation
+        direction: int
+            The direction of the flux, 0=x, 1=y.
         order: float (optional)
             The order of the polynomial reconstruction of the fluxes
 
@@ -67,8 +68,12 @@ class relEulerGammaLawClass(object):
         # Get flux of each cell
         f = np.zeros_like(q)
         f[0] = q[0] * prims[1]
-        f[1] = q[1] * prims[1] + prims[3]
-        f[2] = q[2] * prims[1]
+        if direction == 0:
+            f[1] = q[1] * prims[1] + prims[3]
+            f[2] = q[2] * prims[1]
+        else:
+            f[1] = q[1] * prims[1]
+            f[2] = q[2] * prims[1] + prims[3]
         f[3] = (q[3] + prims[3]) * prims[1]
 
         # Lax-Friedrichs flux splitting
@@ -90,54 +95,6 @@ class relEulerGammaLawClass(object):
 
         return flux
     
-    
-    def fluxFuncY(self, q, simulation, order=2):
-        """
-        Formula of the flux function, using the jacobian of the system
-
-        Parameters
-        ----------
-        q: array of float
-            (Nvars, number_of_cells) Value of the field in repective cells
-        simulation: object
-            The class containing all the data regarding the simulation
-        order: float (optional)
-            The order of the polynomial reconstruction of the fluxes
-
-        Returns
-        -------
-        flux: array of float
-            (Nvars, number_of_cells) The flux of the fields through the cells
-        """
-        prims, aux, alpha = self.getPrimitiveVars(q, simulation)
-
-        # Flux splitting method
-        # Get flux of each cell
-        f = np.zeros_like(q)
-        f[0] = q[0] * prims[2]
-        f[1] = q[1] * prims[2]
-        f[2] = q[2] * prims[2] + prims[3]
-        f[3] = (q[3] + prims[3]) * prims[2]
-
-        # Lax-Friedrichs flux splitting
-        fplus = 0.5 * (f + alpha * q)
-        fminus = 0.5 * (f - alpha * q)
-
-        fpr = np.zeros_like(q)
-        fml = np.zeros_like(q)
-        flux = np.zeros_like(q)
-
-        # Reconstruct fluxes
-        for i in range(q.shape[1]):
-            for j in range(order, q.shape[2]-order):
-                for Nv in range(q.shape[0]):
-                    fpr[Nv, i, j] = weno_upwind(fplus[Nv, i, j-order:j+order-1], order)
-                    fml[Nv, i, j] = weno_upwind(fminus[Nv, i, j+order-1:j-order:-1], order)
-        flux[:, :, 1:-1] = fpr[:, :, 1:-1] + fml[:, :, 1:-1]
-
-        return flux
-
-
 
     def getPrimitiveVars(self, q, simulation):
         """
@@ -177,7 +134,7 @@ class relEulerGammaLawClass(object):
                 e = h - 1 - p/rho
                 pstar = rho * e * (self.g - 1)
                 
-                if vsq > 1 or W<1 or rho<0 or e<0:
+                if vsq >= 1 or W<1 or rho<0 or e<0:
                     return sign*1e6
                 
                 return p - pstar

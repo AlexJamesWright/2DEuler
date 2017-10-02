@@ -25,8 +25,8 @@ def fluxSplitting(q, simulation):
         The net flux through the corresponding cell
         netFlux[i] is the total flux through cell[i]
     """
-    fluxX = simulation.model.fluxX(q, simulation)
-    fluxY = simulation.model.fluxY(q, simulation)
+    fluxX = simulation.model.flux(q, simulation, 0)
+    fluxY = simulation.model.flux(q, simulation, 1)
     netFlux = np.zeros_like(fluxX)
     netFluxX = np.zeros_like(fluxX)
     netFluxY = np.zeros_like(fluxX)

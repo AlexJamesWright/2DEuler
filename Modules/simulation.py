@@ -42,8 +42,7 @@ class simulation(object):
                  source=None, cfl=0.5):
         self.model = model                   # Advection/Burgers etc.
         self.Nvars = self.model.Nvars                # Number of variables in q
-        self.fluxX = self.model.fluxX           # f(q): x-flux
-        self.fluxY = self.model.fluxY           # g(q): y-flux
+        self.flux = self.model.flux            # call with direction=0 for x, =1 for y 
         self.cells = cells                      # Grid
         self.restruct = restruct                # Slope reconstruction (eg weno)
         self.sourceClass = source               # Class containing sources
