@@ -5,7 +5,7 @@ import warnings
 
 warnings.filterwarnings('ignore', 'The iteration is not making good progress')
 
-class eulerGammaLawClass(object):
+class relEulerGammaLawClass(object):
     def __init__(self, grid=None, g=1.4):
         """
         Contains the system described in Leveque §14.3 - the nonrelativistic
