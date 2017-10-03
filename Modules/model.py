@@ -187,38 +187,50 @@ class SRMHDClass(object):
             for j in range(q.shape[2]):
                 vsqGuess =  sim.prims[1, i, j]**2 + sim.prims[2, i, j]**2 + sim.prims[3, i, j]**2
                 Wsq = 1 / (1 - vsqGuess)
-                Zguess = sim.prims[0, i, j] * (1 + self.g * sim.prims[4, i, j]) * Wsq
-                    
-                    
+                Zguess = sim.prims[0, i, j] * sim.aux[0, i, j] * Wsq
+                # Solve
                 self.guessVec[:, i, j] = fsolve(residual, [vsqGuess, Zguess], args=(i,j))
 
 
         vsq, Z = self.guessVec
         W = 1 / np.sqrt(1 - vsq)
+        
+        # Rootfinding can give some annoying results, so check result is sensible (vsq < 1)
+        # If solution is silly, and the normal method for guessing did not work, use
+        # the arithmetic average of the surrounding cells as an initial guess
         if np.any(np.isnan(W)):
+            # Get cell indices where vsq>1
             coords = np.argwhere(np.isnan(W))
             for n in range(coords.shape[0]):
                 x = coords[n, 0]
                 y = coords[n, 1]
-                print("NaN encountered, trying new guess...")
-                print("Vsq[{}, {}] = {}".format(x, y, vsq[x, y]))
-                if x==0 and y!=0:
-                    avgGuess = (self.guessVec[:, x+1, y] + self.guessVec[:, x, y-1] + self.guessVec[:, x, y+1])/3
-                elif x!=0 and y==0:
-                    avgGuess = (self.guessVec[:, x-1, y] + self.guessVec[:, x+1, y] + self.guessVec[:, x, y+1])/3
-                elif x==0 and y==0:
-                    avgGuess = (self.guessVec[:, x+1, y] + self.guessVec[:, x, y+1])/2
-                else:
-                    avgGuess = (self.guessVec[:, x-1, y] + self.guessVec[:, x+1, y] + self.guessVec[:, x, y-1] + self.guessVec[:, x, y+1])/4
+                Nx = sim.cells.nx + 2*sim.cells.Nghosts
+                Ny = sim.cells.ny + 2*sim.cells.Nghosts
+                comp = []
+                # For each of the surrounding cells (not diagonal), ensure it exists,
+                # and that it too has solved to a sensible solution. If so, save x/y indices
+                for xdir in [-1, 0, 1]:
+                    for ydir in [-1, 0, 1]:
+                        if ((xdir == 0) != (ydir == 0)) and x+xdir >= 0 and x+xdir < Nx and y+ydir > 0 and y+ydir < Ny \
+                        and self.guessVec[0, x+xdir, y+ydir] < 1 and not np.isnan(self.guessVec[0, x+xdir, y+ydir]):
+                            comp.append([x+xdir, y+ydir])
+                tot = np.zeros(2)
+                # Take average of each of the valid neighbours solutions and use a guess
+                for elem in comp:
+                    tot += self.guessVec[:, elem[0], elem[1]]
+                avgGuess = tot/len(comp)                
                 self.guessVec[:, x, y] = fsolve(residual, avgGuess, args=(x, y))
+                # Check that this solution makes sense.
                 vsq[x, y], Z[x, y] = self.guessVec[:, x, y]
                 W[x, y] = 1 / np.sqrt(1-vsq[x, y])
+                # If it doesnt, shit is the final word....
                 if np.isnan(W[x, y]):
-                    print("New guessing didnt work... shit.")
+                    print("New guessing didnt work... shit. Solution gave vsq={} for cell ({}, {})".format(vsq[x, y], x, y))
                     import sys
                     sys.exit(1)
-                else:
-                    print("New guessing was a success!!!!!")
+                    
+                    
+                    
         rho = D / W
         h = Z / (rho * W**2)
         p = (h - 1) * rho * (self.g - 1) / self.g
