@@ -100,6 +100,12 @@ class initialFunc(object):
     
     
     def OTVortex(self):
+        """
+        Orszang-Tang Vortex: A two dimensional (can be extended to 3D) 
+        magnetohydrodynamic test problem. In the relativistic case we have to 
+        ensure that the velocities do not exceed 1. 
+        See http://flash.uchicago.edu/site/flashcode/user_support/flash_ug_devel/node178.html
+        """
         assert(self.grid.xmin == 0.0 and self.grid.xmax == 1.0), "X E [0, 1]"
         assert(self.grid.ymin == 0.0 and self.grid.ymax == 1.0), "Y E [0, 1]"
     
