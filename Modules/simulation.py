@@ -196,13 +196,16 @@ class simulation(object):
 #            py.savefig('Figures/GR2MHD{}.pdf'.format(self.primLabels[i]))
             plt.show()
             
-    def plotPrimHeatmaps(self):
+    def plotPrimHeatmaps(self, initial=0):
+        from matplotlib import cm
         Ng = self.cells.Nghosts
         xs, ys = self.cells.realCoordinates()
         for i in range(self.prims.shape[0]):
             fig = plt.figure()
             plotPrims = self.prims[i, Ng:-Ng, Ng:-Ng]
-            surf = plt.imshow(plotPrims, cmap='hot', interpolation='nearest')
+            if initial:
+                plotPrims = self.prims0[i, Ng:-Ng, Ng:-Ng]
+            surf = plt.imshow(plotPrims, cmap=cm.gist_rainbow, interpolation='nearest')
             plt.title(r'Time Evolution for {}: $t = {}$'.format(self.primLabels[i], self.t))
             plt.xlabel(r'$x$')
             plt.ylabel(r'$y$')
@@ -223,7 +226,7 @@ class simulation(object):
             fig = plt.figure()
             ax = fig.gca(projection='3d')
             x, y = np.meshgrid(xs, ys)
-            surf = ax.plot_surface(x, y, var, linewidth=0, cmap=cm.coolwarm)
+            surf = ax.plot_surface(x, y, var, linewidth=0, cmap=cm.gist_rainbow)
             fig.colorbar(surf, shrink=0.5, aspect=5)
             ax.w_zaxis.set_major_locator(LinearLocator(6))
             plt.xlabel(r'$x$')
