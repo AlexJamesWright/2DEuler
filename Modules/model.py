@@ -56,7 +56,6 @@ class SRMHDClass(object):
         self.Naux = 9
         self.flux = self.fluxFunc
         self.guessVec = np.ones((2, grid.nx + 2 * grid.Nghosts, grid.ny + 2 * grid.Nghosts))
-        self.guessVecm1 = np.ones((2, grid.nx + 2 * grid.Nghosts, grid.ny + 2 * grid.Nghosts))
 
 
 
@@ -183,14 +182,12 @@ class SRMHDClass(object):
         # guessVec is a (2, Ncells) array, guessVec[1] = Z = rho * h, and
         # guessVec[0] = v**2
 
-        print(sim.iters)
-
+            
         for i in range(q.shape[1]):
             for j in range(q.shape[2]):
-                self.guessVecm1[:, i, j] = self.guessVec[:, i, j]
-                if sim.iters < 2:
-                    Zguess = sim.prims[0, i, j] * sim.aux[0, i, j]
-                    vsqGuess =  sim.prims[1, i, j]**2 + sim.prims[2, i, j]**2 + sim.prims[3, i, j]**2
+                vsqGuess =  sim.prims[1, i, j]**2 + sim.prims[2, i, j]**2 + sim.prims[3, i, j]**2
+                Wsq = 1 / (1 - vsqGuess)
+                Zguess = sim.prims[0, i, j] * (1 + self.g * sim.prims[4, i, j]) * Wsq
                     
                     
                 self.guessVec[:, i, j] = fsolve(residual, [vsqGuess, Zguess], args=(i,j))
@@ -198,6 +195,30 @@ class SRMHDClass(object):
 
         vsq, Z = self.guessVec
         W = 1 / np.sqrt(1 - vsq)
+        if np.any(np.isnan(W)):
+            coords = np.argwhere(np.isnan(W))
+            for n in range(coords.shape[0]):
+                x = coords[n, 0]
+                y = coords[n, 1]
+                print("NaN encountered, trying new guess...")
+                print("Vsq[{}, {}] = {}".format(x, y, vsq[x, y]))
+                if x==0 and y!=0:
+                    avgGuess = (self.guessVec[:, x+1, y] + self.guessVec[:, x, y-1] + self.guessVec[:, x, y+1])/3
+                elif x!=0 and y==0:
+                    avgGuess = (self.guessVec[:, x-1, y] + self.guessVec[:, x+1, y] + self.guessVec[:, x, y+1])/3
+                elif x==0 and y==0:
+                    avgGuess = (self.guessVec[:, x+1, y] + self.guessVec[:, x, y+1])/2
+                else:
+                    avgGuess = (self.guessVec[:, x-1, y] + self.guessVec[:, x+1, y] + self.guessVec[:, x, y-1] + self.guessVec[:, x, y+1])/4
+                self.guessVec[:, x, y] = fsolve(residual, avgGuess, args=(x, y))
+                vsq[x, y], Z[x, y] = self.guessVec[:, x, y]
+                W[x, y] = 1 / np.sqrt(1-vsq[x, y])
+                if np.isnan(W[x, y]):
+                    print("New guessing didnt work... shit.")
+                    import sys
+                    sys.exit(1)
+                else:
+                    print("New guessing was a success!!!!!")
         rho = D / W
         h = Z / (rho * W**2)
         p = (h - 1) * rho * (self.g - 1) / self.g
@@ -205,8 +226,8 @@ class SRMHDClass(object):
         vx = (Bx * BS + Sx * Z) / (Z * (Bsq + Z))
         vy = (By * BS + Sy * Z) / (Z * (Bsq + Z))
         vz = (Bz * BS + Sz * Z) / (Z * (Bsq + Z))
-#        c = np.sqrt((e * self.g * (self.g - 1)) / h)
-        c = 1 # fudge
+        c = np.sqrt((e * self.g * (self.g - 1)) / h)
+#        c = 1 # fudge
         b0 = W * (Bx * vx + By * vy + Bz * vz)
         bx = Bx / W + b0 * vx
         by = By / W + b0 * vy
@@ -443,6 +464,12 @@ class relEulerGammaLawClass(object):
                 x = tau + p + D
                 vsq = (Sx**2 + Sy**2) / x**2
                 W = 1 / np.sqrt(1 - vsq)
+                if np.any(np.isnan(W)):
+                    print("NaN encountered, exiting early")
+                    simulation.plotPrimHeatmaps()
+                    import sys
+                    sys.exit(1)
+                    
                 rho = D / W
                 h = (tau + p + D) / (D*W)
                 e = h - 1 - p/rho
