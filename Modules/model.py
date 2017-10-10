@@ -104,7 +104,7 @@ class SRMHDClass(object):
             f[4] = (tau + p + bsq/2) * vy - b0 * By / W
             f[5] = Bx * vy - By * vx
             f[6] = phi
-            f[7] = Bz * vy - By * vz + phi
+            f[7] = Bz * vy - By * vz
             f[8] = By
             
             
