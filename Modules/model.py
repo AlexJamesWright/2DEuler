@@ -47,11 +47,11 @@ class SRMHDClass(object):
         assert(type(grid) == cells.cells), \
         'Must include the grid structure when initiating model'
 
-        self.consLabels = [r'$D$', r'$S_x$', r'$S_y$', r'$S_z$', r'$\Tau$', r'$B_x$', r'$B_y$', r'$B_z$']
+        self.consLabels = [r'$D$', r'$S_x$', r'$S_y$', r'$S_z$', r'$\Tau$', r'$B_x$', r'$B_y$', r'$B_z$', r'$\phi$']
         self.primLabels = [r'$\rho$', r'$v_x$', r'$v_y$',r'$v_z$', r'$p$', r'$B_x$', r'$B_y$', r'$B_z$']
         self.auxLabels = [r'$h$', r'$W$', r'$e$', r'$c$']
         self.g = g
-        self.Nvars = 8
+        self.Nvars = 9
         self.Nprims = 8
         self.Naux = 9
         self.flux = self.fluxFunc
@@ -79,24 +79,36 @@ class SRMHDClass(object):
         order = 2   # Hard code order of weno
 
         prims, aux, alpha = self.getPrimitiveVars(q, simulation)
-        D, Sx, Sy, Sz, tau, Bx, By, Bz = q
+        D, Sx, Sy, Sz, tau, Bx, By, Bz, phi = q
         rho, vx, vy, vz, p, Bx, By, Bz = prims
         h, W, e, c, b0, bx, by, bz, bsq = aux
 
         f = np.zeros_like(q)
-        f[0] = D * vx
+        
         if direction == 0:
+            f[0] = D * vx
             f[1] = Sx * vx + (p + bsq/2) - bx * Bx /W
-            f[2] = Sy * vx + - by * Bx /W
-            f[3] = Sz * vx + - bz * Bx /W
+            f[2] = Sy * vx +             - by * Bx /W
+            f[3] = Sz * vx +             - bz * Bx /W
+            f[4] = (tau + p + bsq/2) * vx - b0 * Bx / W
+            f[5] = phi
+            f[6] = By * vx - Bx * vy
+            f[7] = Bz * vx - Bx * vz
+            f[8] = Bx
+            
         else:
-            f[1] = Sx * vx + - bx * Bx /W
-            f[2] = Sy * vx + (p + bsq/2) - by * Bx /W
-            f[3] = Sz * vx + - bz * Bx /W
-        f[4] = (tau + p + bsq/2) * vx - b0 * Bx / W
-        f[6] = By * vx - Bx * vy
-        f[7] = Bz * vx - Bx * vz
-
+            f[0] = D * vy
+            f[1] = Sx * vy +             - bx * By /W
+            f[2] = Sy * vy + (p + bsq/2) - by * By /W
+            f[3] = Sz * vy +             - bz * By /W
+            f[4] = (tau + p + bsq/2) * vy - b0 * By / W
+            f[5] = Bx * vy - By * vx
+            f[6] = phi
+            f[7] = Bz * vy - By * vz + phi
+            f[8] = By
+            
+            
+        
 
         # Lax-Friedrichs flux splitting
         fplus = 0.5 * (f + alpha * q)
@@ -148,7 +160,7 @@ class SRMHDClass(object):
         prims = np.zeros((self.Nprims, q.shape[1], q.shape[2]))
         aux = np.zeros((self.Naux, q.shape[1], q.shape[2]))
 
-        D, Sx, Sy, Sz, Tau, Bx, By, Bz = q
+        D, Sx, Sy, Sz, Tau, Bx, By, Bz, phi = q
         BS = Bx * Sx + By * Sy + Bz * Sz
         Bsq = Bx**2 + By**2 + Bz**2
         BSsq = BS**2
@@ -156,7 +168,7 @@ class SRMHDClass(object):
 
         def residual(guess, i, j):
             vsq, Z = guess
-            if vsq >= 1:
+            if vsq >= 1 or Z < 0:
                 return 1e6*np.ones_like(guess)
                 
             W = 1 / np.sqrt(1 - vsq)
@@ -193,11 +205,11 @@ class SRMHDClass(object):
 
 
         vsq, Z = self.guessVec
-        W = 1 / np.sqrt(1 - vsq)
+        W = 1 / np.sqrt(1 - vsq)  
         
         # Rootfinding can give some annoying results, so check result is sensible (vsq < 1)
         # If solution is silly, and the normal method for guessing did not work, use
-        # the arithmetic average of the surrounding cells as an initial guess
+        # the arithmetic average of the surrounding cells' solutions as an initial guess
         if np.any(np.isnan(W)):
             # Get cell indices where vsq>1
             coords = np.argwhere(np.isnan(W))
@@ -211,23 +223,42 @@ class SRMHDClass(object):
                 # and that it too has solved to a sensible solution. If so, save x/y indices
                 for xdir in [-1, 0, 1]:
                     for ydir in [-1, 0, 1]:
-                        if ((xdir == 0) != (ydir == 0)) and x+xdir >= 0 and x+xdir < Nx and y+ydir > 0 and y+ydir < Ny \
+                        if ((xdir == 0) != (ydir == 0)) and x+xdir >= 0 and x+xdir < Nx and y+ydir >= 0 and y+ydir < Ny \
                         and self.guessVec[0, x+xdir, y+ydir] < 1 and not np.isnan(self.guessVec[0, x+xdir, y+ydir]):
                             comp.append([x+xdir, y+ydir])
                 tot = np.zeros(2)
                 # Take average of each of the valid neighbours solutions and use a guess
                 for elem in comp:
                     tot += self.guessVec[:, elem[0], elem[1]]
-                avgGuess = tot/len(comp)                
+                avgGuess = tot/len(comp)             
                 self.guessVec[:, x, y] = fsolve(residual, avgGuess, args=(x, y))
                 # Check that this solution makes sense.
                 vsq[x, y], Z[x, y] = self.guessVec[:, x, y]
                 W[x, y] = 1 / np.sqrt(1-vsq[x, y])
                 # If it doesnt, shit is the final word....
                 if np.isnan(W[x, y]):
-                    print("New guessing didnt work... shit. Solution gave vsq={} for cell ({}, {})".format(vsq[x, y], x, y))
-                    import sys
-                    sys.exit(1)
+                    print("New guessing didnt work... shit. Guess of {} gave vsq={} for cell ({}, {})".format(avgGuess[0], vsq[x, y], x, y))
+                    if x <sim.cells.Nghosts-2 or y<sim.cells.Nghosts-2:
+                        # This is in the halo, ignore?
+                        print("Error in halo, ignoring")
+                    else:
+#                        print("comp was:\n{}".format(comp))
+#                        for com in comp:
+#                            print("{}".format(self.guessVec[0, com[0], com[1]]))
+#                        print("len(comp) = {}, tot = {}".format(len(comp), tot))
+#                        import sys
+#                        sys.exit(1)
+                        res = fsolve(residual, avgGuess, args=(x, y))
+                        if res[0] < 1:
+                            print("WORKS NOW")
+                            self.guessVec[:, x, y] = res
+                        else:
+                            print("comp was:\n{}".format(comp))
+                            for com in comp:
+                                print("{}".format(self.guessVec[0, com[0], com[1]]))
+                            print("len(comp) = {}, tot = {}".format(len(comp), tot))
+                            import sys
+                            sys.exit(1)
                     
                     
                     
@@ -255,7 +286,12 @@ class SRMHDClass(object):
         return prims, aux, alpha
 
     def getConsFromPrims(self, prims):
-
+        """
+        Uses the values of the primitive variables to determine the corresponding
+        conserved vector. Required before the simulation is evolved due to the
+        initial state being given in terms of the prims. Also computes and returns
+        the auxilliary variables.
+        """
         rho, vx, vy, vz, p, Bx, By, Bz = prims
         vsq = vx**2 + vy**2 + vz**2
         W = 1 / np.sqrt(1 - vsq)
@@ -275,10 +311,12 @@ class SRMHDClass(object):
         cons[1] = (rho*h + bsq) * W**2 * vx - b0 * bx
         cons[2] = (rho*h + bsq) * W**2 * vy - b0 * by
         cons[3] = (rho*h + bsq) * W**2 * vz - b0 * bz
-        cons[4] = (rho*h + bsq) * W**2 - (p + bsq/2) - b0**2 - cons[0]
+#        cons[4] = (rho*h + bsq) * W**2 - (p + bsq/2) - b0**2 - cons[0]
+        cons[4] = (rho*h + bsq) * W**2 - (p + bsq/2) - cons[0] #REMOVE
         cons[5] = Bx
         cons[6] = By
         cons[7] = Bz
+        cons[8] = 0
         aux[:] = h, W, e, c, b0, bx, by, bz, bsq
         # Calculate maximum wave speed
         alpha = 1   # Lazines
