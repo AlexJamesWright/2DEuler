@@ -36,6 +36,7 @@ def fluxSplitting(q, simulation):
     netFlux = netFluxX + netFluxY
 
 
+
     return netFlux
 
 
