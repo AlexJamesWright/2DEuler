@@ -85,7 +85,7 @@ class simulation(object):
         updateTime increments the simulation by the initialised timestep, and
         updates the field values of all the cells
         """
-        self.deltaT = self.cfl * self.deltaX / self.alpha
+        self.deltaT = self.cfl / (1/self.deltaX + 1/self.deltaY)
         if self.iters < 5:
             self.deltaT *= 0.1
         if self.t + self.deltaT > endTime:
@@ -196,7 +196,7 @@ class simulation(object):
 #            py.savefig('Figures/GR2MHD{}.pdf'.format(self.primLabels[i]))
             plt.show()
             
-    def plotPrimHeatmaps(self, initial=0):
+    def plotPrimHeatmaps(self, initial=0, color=None):
         from matplotlib import cm
         Ng = self.cells.Nghosts
         xs, ys = self.cells.realCoordinates()
@@ -205,7 +205,9 @@ class simulation(object):
             plotPrims = self.prims[i, Ng:-Ng, Ng:-Ng]
             if initial:
                 plotPrims = self.prims0[i, Ng:-Ng, Ng:-Ng]
-            surf = plt.imshow(plotPrims, cmap=cm.gist_rainbow, interpolation='nearest')
+            if color == None:
+                color = cm.plasma
+            surf = plt.imshow(plotPrims, cmap=color, interpolation='nearest')
             plt.title(r'Time Evolution for {}: $t = {}$'.format(self.primLabels[i], self.t))
             plt.xlabel(r'$x$')
             plt.ylabel(r'$y$')
