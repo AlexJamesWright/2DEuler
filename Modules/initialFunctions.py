@@ -8,7 +8,7 @@ import numpy as np
 
 
 class initialFunc(object):
-    def __init__(self, grid, model=None, tau=1, primL=None, primR=None):
+    def __init__(self, grid, model=None, primL=None, primR=None):
         """
         Class that stores the functional forms of the initial field
 
@@ -30,7 +30,6 @@ class initialFunc(object):
             (Nvars,) The initial data of the primative variables on the right
             side of the system
         """
-        self.tau = tau
         self.prims = None
         self.aux = None
         self.model = model
@@ -112,16 +111,18 @@ class initialFunc(object):
         x, y = self.grid.coordinates()
         prims = np.zeros((self.model.Nprims, x.shape[0], y.shape[0]))
         
-        prims[0, :, :] = self.model.g ** 2
-        prims[4, :, :] = self.model.g
+        
+        
+        prims[0, :, :] = 25 / 36 / np.pi
+        prims[4, :, :] = 5 / 12 / np.pi
         
         for i, xelem in enumerate(x):
             prims[2, i, :] = 0.5*np.sin(2 * np.pi * xelem)
-            prims[6, i, :] = np.sin(4 * np.pi * xelem)
+            prims[6, i, :] = np.sin(4 * np.pi * xelem) / np.sqrt(4*np.pi)
             
         for j, yelem in enumerate(y):
             prims[1, :, j] = - 0.5*np.sin(2 * np.pi * yelem)
-            prims[5, :, j] = - np.sin(2 * np.pi * yelem)
+            prims[5, :, j] = - np.sin(2 * np.pi * yelem) / np.sqrt(4*np.pi)
 
         self.prims = prims
         cons, self.aux, alpha = self.model.getConsFromPrims(prims)
