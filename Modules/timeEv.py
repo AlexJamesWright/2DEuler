@@ -81,7 +81,7 @@ def RK3(simulation, q):
 
 def eulerSplitRK3(simulation, q):
     """
-    EX timestep solver for inclusion of source terms
+    Explicit timestep solver for inclusion of source terms
 
     Parameters
     ----------
@@ -101,7 +101,7 @@ def eulerSplitRK3(simulation, q):
 
     dt = simulation.deltaT
     qstar = RK3(simulation, q)
-    return qstar + dt * simulation.source(qstar, simulation)
+    return qstar + dt * simulation.source(qstar, cp=0.1)
 
 def backEulerRK3(simulation, q):
     """
