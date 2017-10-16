@@ -9,10 +9,10 @@ from simulation import simulation
 from initialFunctions import initialFunc
 from cells import cells
 from model import SRMHDClass
-from timeEv import RK2
+from timeEv import eulerSplitRK3
 from boundaryConditions import periodic
 from fluxApprox import fluxSplitting
-from sourceTerms import sources, noSource
+from sourceTerms import sources, divCleaning
 import numpy as np
 import time
 
@@ -21,23 +21,23 @@ if __name__ == '__main__':
     timeStart = time.time()
 
     # Set up problem
-    grid = cells(50, 50, 0, 1, 0, 1)
+    grid = cells(270, 270, 0, 1, 0, 1)
     model = SRMHDClass(grid=grid, g=5/3)
-    source = sources(noSource, tau=None)
+    source = sources(divCleaning)
     # Set initial state
     primL = np.array([1, 0, 0, 100])
     primR = np.array([0.125, 0, 0, 0.1])
-    initFuncObj = initialFunc(grid, model, source.tau, primL, primR)
+    initFuncObj = initialFunc(grid, model, primL, primR)
     initFunc = initFuncObj.OTVortex
 
 
     # Set up simulation
     sim = simulation(initFuncObj, initFunc, grid,
-                     model, RK2, periodic, fluxSplitting, source=source,
-                     cfl=0.2)
+                     model, eulerSplitRK3, periodic, fluxSplitting, source=source,
+                     cfl=0.5)
 
     print("Running simulation")
-    sim.runSim(0.1)
+    sim.runSim(0.8)
     sim.plotPrimHeatmaps() 
 
 
