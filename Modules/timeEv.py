@@ -103,6 +103,30 @@ def eulerSplitRK3(simulation, q):
     qstar = RK3(simulation, q)
     return qstar + dt * simulation.source(qstar, cp=0.1)
 
+def eulerSplitRK2(simulation, q):
+    """
+    Explicit timestep solver for inclusion of source terms
+
+    Parameters
+    ----------
+    simulation: class
+        The class containing all the data regarding the simulation
+    q: numpy array of floats
+        The value of the field at the centre of each corresponding cell
+
+    Returns
+    -------
+    q: numpy array of floats
+        The new values of the field according to the flux given by
+        simulation.F using the Runge-Kutta 3-step approximation and the
+        forward Euler step
+
+    """
+
+    dt = simulation.deltaT
+    qstar = RK2(simulation, q)
+    return qstar + dt * simulation.source(qstar, cp=0.1)
+
 def backEulerRK3(simulation, q):
     """
     IMEX timestep solver for stiff source terms. Homogeneous equation solved
