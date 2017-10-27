@@ -7,8 +7,288 @@ import cells
 warnings.filterwarnings('ignore', 'The iteration is not making good progress')
 
 
+#############################################################################
+##########                        TFEMHD                         ############        
+#############################################################################
+
+class TwoFluidEMHD(object):
+    def __init__(self, grid, g=5/3, mu1=-1, mu2=1, sig=100, kappa=100):
+        """
+        Two Fluid ElectroMagnetoHydroDynamics
+        The two fluid model for plasmas in the special relativistic limit. Model
+        is taken from Amano '16 "A second-order divergence-constrained 
+        multidimensional numerical scheme for relativistic two-fluid 
+        electrodynamics", although here we implement divergence cleaning to constrain
+        the conditions set by maxwells equations. The divergence cleaning method
+        is taken from Kiki's Thesis (and refs) for resistive SRMHD. 
+        
+        Cons = (D, Sx, Sy, Sz, tau,
+                Dbar, Sbarx, Sbary, Sbarz, tauBar,
+                Bx, By, Bz, Ex, Ey, Ez,
+                psi, phi)
+        
+        where we have implied the summatation over species 1 and 2 (electrons 
+        and protons), such that D = D1 + D2 etc. The bars refer to the weighted
+        sum of the respective variables (weighted by the charge/mass ratio).
+        
+        D       = rho * W
+        Si      = rho * h * W**2 * vi + EcrossBi
+        tau     = rho * h * W - p + 0.5 * (Esq + Bsq)
+        Dbar    = mu * rho * W
+        Sbari   = mu * rho * h * W**2 * vi
+        tauBar  = mu * rho * h * W - mu * p
+        
+        Prims = (rho1, vx1, vy1, vz1, p1,
+                 rho2, vx2, vy2, vz2, p2,
+                 Bx, By, Bz, Ex, Ey, Ez)
+        
+        Aux = (h1, W1, e1, vsq1, Z1, vE1, D1, Stildex1, Stildey1, Stildez1, tauTilde1
+               h2, W2, e2, vsq2, Z2, vE2, D2, Stildex2, Stildey2, Stildez2, tauTilde2
+               Bsq, Esq, 
+               Jx, Jy, Jz, 
+               Stildex, Stildey, Stildez, 
+               tauTilde
+               rhoCh, rhoCh0,
+               ux, uy, uz, W)
+        
+        where:
+            D1          = (Dbar - mu2 * D) / (mu1 - mu)             etc for D2
+            tauTilde    = tau - 0.5 * (Esq - Bsq)
+            tauTilde1   = (tauBar - mu2 * tauTilde) / (mu1 - mu2)   etc for tauTilde2
+            Stildei     = Si - EcrossB
+            Stildei1    = (Sbari - mu2 * Stildei) / (mu1 - mu)      etc for Stildei2
+            vE1         = vx1 * Ex + vy1 * Ey + vz1 * Ez            etc for vE2
+            Ji          = mu1 * rho1 * W1 * vi1 + mu2 * rho2 * W2 * vi2
+            rhoCh       = mu1 * rho1 * W1 + mu2 * rho2 * W2
+            W           = (mu1*mu1*rho1*W1 + mu2*mu2*rho2*W2) / (mu1*mu1*rho1 + mu2*mu2*rho2)
+            ui          = (mu1*mu1*rho1*W1*v1i + mu2*mu2*rho2*W2*v2i) / (mu1*mu1*rho1 + mu2*mu2*rho2)
+            rhoCh0      = W * rhoCh - numpy.dot(J, u)
+            Z1          = rho1 * h1 * W1**2
+            
+        Good luck.
+        """
+        
+        self.consLabels = [r'$D$', r'$S_x$', r'$S_y$', r'$S_z$', r'$\tau$',
+                           r'$\bar{D}$', r'$\bar{S}_x$', r'$\bar{S}_y$', r'$\bar{S}_z$', 
+                           r'$\bar{\tau}$', r'$B_x$', r'$B_y$', r'$B_z$', r'$E_x$', 
+                           r'$E_y$', r'$E_z$', r'$\psi$', r'$\phi$']
+        self.primLabels = [r'$\rho_1$', r'$v_{x1}$', r'$v_{y1}$', r'$v_{z1}$', r'$p_1$',
+                            r'$\rho_2$', r'$v_{x2}$', r'$v_{y2}$', r'$v_{z2}$', r'$p_2$', 
+                            r'$B_x$', r'$B_y$', r'$B_z$', r'$E_x$', r'$E_y$', r'$E_z$']
+        self.auxLabels = [r'$h_1$', r'$W_1$', r'$e_1$', r'$v^2_1$', r'$Z_1$', r'$vE_1$', r'$D_1$', r'$\tilde{S}_{x1}$', r'$\tilde{S}_{y1}$', r'$\tilde{S}_{z1}$', r'$\tilde{\tau}_{1}$',
+                          r'$h_2$', r'$W_2$', r'$e_2$', r'$v^2_2$', r'$Z_2$', r'$vE_2$', r'$D_2$', r'$\tilde{S}_{x2}$', r'$\tilde{S}_{y2}$', r'$\tilde{S}_{z2}$', r'$\tilde{\tau}_{2}$',
+                          r'$B^2$', r'$E^2$', 
+                          r'$J_{x}$', r'$J_{y}$', r'$J_{z}$', 
+                          r'$\tilde{S}_x$', r'$\tilde{S}_z$', r'$\tilde{S}_z$', 
+                          r'$\tilde{\tau}$',
+                          r'$\rho_{ch}', r'$\rho_{ch_0}$',
+                          r'$u_x$', r'$u_z$', r'$u_y$', r'$W$']
+        self.grid = grid
+        self.g = g
+        self.mu1 = mu1
+        self.mu2 = mu2
+        self.sig = sig
+        self.kappa = kappa
+        self.Nvars = 18
+        self.Nprims = 16
+        self.Naux = 37
+        self.flux = self.fluxFunc
+        
+    def fluxFunc(self, q, sim):
+        pass
+    
+    def getPrimitiveVars(self, q, sim):
+        """
+        Given the conserved variables, returns the corresponding values for the 
+        primitive and aux vars. 
+        First subtract the EM fields from the momentum and energy, split up the
+        cons vars into contributions from each fluid species, and the proceed in
+        the normal relativistic hydrodynamic fashion.
+        """
+        # Short hand
+        mu1 = self.mu1
+        mu2 = self.mu2
+        Nx, Ny =  q[0, :, :].shape
+        
+        # Initialize variables
+        aux = np.zeros((self.Naux, Nx, Ny))
+        prims = np.zeros((self.Nprims, Nx, Ny))
+        # Aux
+        h1, W1, e1, vsq1, Z1, vE1, D1, Stildex1, Stildey1, Stildez1, tauTilde1, \
+        h2, W2, e2, vsq2, Z2, vE2, D2, Stildex2, Stildey2, Stildez2, tauTilde2, \
+        Bsq, Esq, \
+        Jx, Jy, Jz, \
+        Stildex, Stildey, Stildez, \
+        tauTilde, \
+        rhoCh, rhoCh0, \
+        ux, uy, uz, W = aux[:]
+        # Prims
+        rho1, vx1, vy1, vz1, p1, rho2, vx2, vy2,\
+        vz2, p2, Bx, By, Bz, Ex, Ey, Ez = prims[:]
+
+        # Cons vars
+        D, Sx, Sy, Sz, tau, Dbar, Sbarx, Sbary, Sbarz, \
+        tauBar, Bx, By, Bz, Ex, Ey, Ez, psi, phi = q[:]
+        
+        Bsq = Bx**2 + By**2 + Bz**2
+        Esq = Ex**2 + Ey**2 + Ez**2
+        
+        # Remove EM contribution
+        Stildex = Sx - (Ey * Bz - Ez * By)
+        Stildey = Sy - (Ez * Bx - Ex * Bz)
+        Stildez = Sz - (Ex * By - Ey * Bx)
+        tauTilde = tau - 0.5 * (Esq + Bsq)
+        
+        # Split the fluid into its constituent species
+        D1 = (Dbar - mu2 * D) / (mu1 - mu2)
+        D2 = (Dbar - mu1 * D) / (mu2 - mu1)
+        Stildex1 = (Sbarx - mu2 * Stildex) / (mu1 - mu2)
+        Stildey1 = (Sbary - mu2 * Stildey) / (mu1 - mu2)
+        Stildez1 = (Sbarz - mu2 * Stildez) / (mu1 - mu2)
+        Stildex2 = (Sbarx - mu1 * Stildex) / (mu2 - mu1)
+        Stildey2 = (Sbary - mu1 * Stildey) / (mu2 - mu1)
+        Stildez2 = (Sbarz - mu1 * Stildez) / (mu2 - mu1)
+        Stilde1sq = Stildex1**2 + Stildey1**2 + Stildez1**2
+        Stilde2sq = Stildex2**2 + Stildey2**2 + Stildez2**2
+        tauTilde1 = (tauBar - mu2 * tauTilde) / (mu1 - mu2)
+        tauTilde2 = (tauBar - mu1 * tauTilde) / (mu2 - mu1)
+        
+        
+        # We now have everything we need
+        def residual(Z, StildesqFluid, DFluid, tauTildeFluid, i, j):
+            """
+            Function to minimize to determine value of guess=Z=rho * h * W * W
+            Parameters
+            ----------
+                Z: float
+                    Estimate of solution, Z = rho * h * W**2
+                StildesqFluid: float
+                    Value of Stildesq for this fluid
+                DFluid: float
+                    Value of D for this fluid
+                tauTildeFluid: float
+                    Value of tauTilde for this fluid
+            """
+            vsq = StildesqFluid / Z**2
+            W = 1 / np.sqrt(1 - vsq)
+            rho = DFluid / W
+            h = Z / (rho * W**2)
+            p = (self.g - 1) * (h - rho) / self.g
+            
+            if vsq >= 1 or Z < 0 or rho < 0 or p < 0 or W < 1 or h < 1:
+                return 1e6
+            else:
+                resid = (1 - (self.g - 1)/(W**2*self.g)) * Z + \
+                        ((self.g - 1)/(W*self.g) - 1)*DFluid - tauTildeFluid
+                return resid
+        
+        
+        # Loop over all domain cells
+        for i in range(Nx):
+            for j in range(Ny):
+                # Fluid 1
+                Z1[i, j] = newton(residual, x0=sim.aux[4, i, j]*0.9, args=(Stilde1sq[i, j], D1[i, j], tauTilde1[i, j], i, j))
+                # Fluid 2
+                Z2[i, j] = newton(residual, x0=sim.aux[15, i, j]*0.9, args=(Stilde2sq[i, j], D2[i, j], tauTilde2[i, j], i, j))
 
 
+        i = 0
+        j = 0
+        print(Sx[i, j], Sy[i, j], Sz[i, j], tau[i, j])
+        print(Stildex[i, j], Stildey[i, j], Stildez[i, j], tauTilde[i, j])
+        print(Z1[5, 11])
+        print(sim.aux[4, 5, 11])
+        
+        print("residual = ", residual(sim.aux[4, 5, 11], Stilde1sq[3, 3], D1[3, 3], tauTilde1[3, 3], 3, 3))
+
+        return Z1, Z2
+        
+    
+    def getConsFromPrims(self, prims):
+        """
+        Generates the conserved and auxilliary vectors from the primitive values.
+        Used at start of sim, initial conditions are set in primitives, need to
+        transformed. 
+        """
+        mu1 = self.mu1
+        mu2 = self.mu2
+        Nx, Ny =  prims[0, :, :].shape
+        cons = np.zeros((self.Nvars, Nx, Ny))
+        aux = np.zeros((self.Naux, Nx, Ny))
+        alpha = 1
+        psi = np.zeros_like(prims[0])
+        phi = np.zeros_like(prims[0])
+        
+        rho1, vx1, vy1, vz1, p1, rho2, vx2, vy2, \
+        vz2, p2, Bx, By, Bz, Ex, Ey, Ez = prims
+        
+        vsq1        = vx1**2 + vy1**2 + vz1**1
+        vsq2        = vx2**2 + vy2**2 + vz2**2
+        W1          = 1 / np.sqrt(1 - vsq1)
+        W2          = 1 / np.sqrt(1 - vsq2)
+        EcrossBx    = Ey * Bz - Ez * By
+        EcrossBy    = Ez * Bx - Ex * Bz
+        EcrossBz    = Ex * By - Ey * Bx
+        Esq         = Ex**2 + Ey**2 + Ez**2
+        Bsq         = Bx**2 + By**2 + Bz**2
+        e1          = p1 / (rho1 * (self.g - 1))
+        e2          = p2 / (rho2 * (self.g - 1))
+        h1          = 1 + e1 + p1 / rho1
+        h2          = 1 + e2 + p1 / rho2
+        Z1          = rho1 * h1 * W1**2
+        Z2          = rho2 * h2 * W2**2
+        vE1         = vx1*Ex + vy1*Ey + vz1*Ez
+        vE2         = vx2*Ex + vy2*Ey + vz2*Ez
+        Jx          = mu1 * rho1 * W1 * vx1 + mu2 * rho2 * W2 * vx2
+        Jy          = mu1 * rho1 * W1 * vy1 + mu2 * rho2 * W2 * vy2
+        Jz          = mu1 * rho1 * W1 * vz1 + mu2 * rho2 * W2 * vz2
+        rhoCh       = mu1 * rho1 * W1 + mu2 * rho2 * W2
+        W           = (mu1**2 * rho1 * W1 + mu2**2 * rho2 * W2) / \
+                      (mu1**2 * rho1 + mu2**2 * rho2)
+        ux          = (mu1**2 * rho1 * W1 * vx1 + mu2**2 * rho2 * W2 * vx2) / \
+                      (mu1**2 * rho1 + mu2**2 * rho2)
+        uy          = (mu1**2 * rho1 * W1 * vy1 + mu2**2 * rho2 * W2 * vy2) / \
+                      (mu1**2 * rho1 + mu2**2 * rho2)
+        uz          = (mu1**2 * rho1 * W1 * vz1 + mu2**2 * rho2 * W2 * vz2) / \
+                      (mu1**2 * rho1 + mu2**2 * rho2)
+        rhoCh0      = W * rhoCh - (Jx*ux + Jy*uy + Jz*uz)
+        D1          = rho1 * W1
+        D2          = rho2 * W2
+        D           = D1 + D2
+        Sx          = Z1 * vx1 + Z2 * vx2 + EcrossBx
+        Sy          = Z1 * vy1 + Z2 * vy2 + EcrossBy
+        Sz          = Z1 * vz1 + Z2 * vz2 + EcrossBz
+        tau         = Z1 / W1 - p1 + Z2 / W2 - p2 + 0.5 * (Esq + Bsq)
+        Dbar        = mu1 * rho1 * W1 + mu2 * rho2 * W2
+        Sbarx       = mu1 * Z1 * vx1 + mu2 * Z2 * vx2
+        Sbary       = mu1 * Z1 * vy1 + mu2 * Z2 * vy2
+        Sbarz       = mu1 * Z1 * vz1 + mu2 * Z2 * vz2
+        tauBar      = mu1 * Z1 / W1 - mu1 * p1 + mu2 * Z2 / W2 - mu2 * p2
+        Stildex1    = Z1 * vx1
+        Stildex2    = Z2 * vx2
+        Stildey1    = Z1 * vy1
+        Stildey2    = Z2 * vy2
+        Stildez1    = Z1 * vz1
+        Stildez2    = Z2 * vz2
+        Stildex     = Stildex1 + Stildex2
+        Stildey     = Stildey1 + Stildey2
+        Stildez     = Stildez1 + Stildez2
+        tauTilde1   = Z1 / W1
+        tauTilde2   = Z2 / W2
+        tauTilde    = tauTilde1 + tauTilde2
+        
+
+        aux[:] = h1, W1, e1, vsq1, Z1, vE1, D1, Stildex1, Stildey1, Stildez1, \
+                 tauTilde1, h2, W2, e2, vsq2, Z2, vE2, D2, Stildex2, Stildey2, \
+                 Stildez2, tauTilde2, \
+                 Bsq, Esq, \
+                 Jx, Jy, Jz, \
+                 Stildex, Stildey, Stildez, \
+                 tauTilde, \
+                 rhoCh, rhoCh0, \
+                 ux, uy, uz, W
+        cons[:] = D, Sx, Sy, Sz, tau, Dbar, Sbarx, Sbary, Sbarz, tauBar, Bx, By, Bz, Ex, Ey, Ez, psi, phi
+        return cons, aux, alpha
 
 
 
@@ -25,7 +305,7 @@ class SRMHDClass(object):
         (S)pecial (R)elativistic (M)agneto(h)ydro(d)ynamics
         The special relativistic extension to the magnetohydrodynamic eqiuations.
         Flux is given using flux vector splitting method -
-        System is one dimensional with conservative
+        System is two dimensional with conservative
         vector q = (D, Sx, Sy, Sz, tau, Bx, By, Bz),
         primative variables, prim = (rho, v_x, v_y, v_z, p, Bx, By, Bz)
         auxiliary variables, aux = (h, W, e, c)
@@ -311,8 +591,7 @@ class SRMHDClass(object):
         cons[1] = (rho*h + bsq) * W**2 * vx - b0 * bx
         cons[2] = (rho*h + bsq) * W**2 * vy - b0 * by
         cons[3] = (rho*h + bsq) * W**2 * vz - b0 * bz
-#        cons[4] = (rho*h + bsq) * W**2 - (p + bsq/2) - b0**2 - cons[0]
-        cons[4] = (rho*h + bsq) * W**2 - (p + bsq/2) - cons[0] #REMOVE
+        cons[4] = (rho*h + bsq) * W**2 - (p + bsq/2) - b0**2 - cons[0]
         cons[5] = Bx
         cons[6] = By
         cons[7] = Bz
