@@ -155,7 +155,7 @@ class TwoFluidEMHD(object):
         
         
         # We now have everything we need
-        def residual(Z, StildesqFluid, DFluid, tauTildeFluid, i, j):
+        def residual(Z, StildesqFluid, DFluid, tauTildeFluid):
             """
             Function to minimize to determine value of guess=Z=rho * h * W * W
             Parameters
@@ -175,7 +175,7 @@ class TwoFluidEMHD(object):
             W = 1 / np.sqrt(1 - vsq)
             rho = DFluid / W
             h = Z / (rho * W**2)
-            p = (self.g - 1) * (h - rho) / self.g            
+            p = (self.g - 1) * (h - rho) / self.g    
             if Z < 0 or rho < 0 or p < 0 or W < 1 or h < 1:
                 return 1e6
             else:
@@ -188,14 +188,62 @@ class TwoFluidEMHD(object):
         for i in range(Nx):
             for j in range(Ny):
                 # Fluid 1
-                Z1[i, j] = newton(residual, x0=sim.aux[4, i, j]*0.95, args=(Stilde1sq[i, j], D1[i, j], tauTilde1[i, j], i, j))
+                Z1[i, j] = newton(residual, x0=sim.aux[4, i, j]*0.9, args=(Stilde1sq[i, j], D1[i, j], tauTilde1[i, j]))
                 # Fluid 2
-                Z2[i, j] = newton(residual, x0=sim.aux[15, i, j]*0.95, args=(Stilde2sq[i, j], D2[i, j], tauTilde2[i, j], i, j))
+                Z2[i, j] = newton(residual, x0=sim.aux[15, i, j]*0.9, args=(Stilde2sq[i, j], D2[i, j], tauTilde2[i, j]))
 
 
 
+        vsq1    = Stilde1sq / Z1**2
+        vsq2    = Stilde2sq / Z2**2
+        W1      = 1 / np.sqrt(1 - vsq1)
+        W2      = 1 / np.sqrt(1 - vsq2)
+        rho1    = D1 / W1
+        rho2    = D2 / W2
+        h1      = Z1 / (rho1 * W1**2)
+        h2      = Z2 / (rho2 * W2**2)
+        e1      = (Z1 / W1**2 - rho1) / (self.g * rho1)
+        e2      = (Z2 / W2**2 - rho2) / (self.g * rho2)
+        p1      = rho1 * e1 * (self.g - 1)
+        p2      = rho2 * e2 * (self.g - 1)
+        vx1     = Stildex1 / Z1
+        vx2     = Stildex2 / Z2
+        vy1     = Stildey1 / Z1
+        vy2     = Stildey2 / Z2
+        vz1     = Stildez1 / Z1
+        vz2     = Stildez2 / Z2
+        vE1     = vx1 * Ex + vy1 * Ey + vz1 * Ez
+        vE2     = vx2 * Ex + vy2 * Ey + vz2 * Ez
+        Jx      = mu1 * rho1 * W1 * vx1 + mu2 * rho2 * W2 * vx2
+        Jy      = mu1 * rho1 * W1 * vy1 + mu2 * rho2 * W2 * vy2
+        Jz      = mu1 * rho1 * W1 * vz1 + mu2 * rho2 * W2 * vz2
+        rhoCh   = mu1 * rho1 * W1 + mu2 * rho2 * W2
+        W       = (mu1**2 * rho1 * W1 + mu2**2 * rho2 * W2) / \
+                  (mu1**2 * rho1 + mu2**2 * rho2)
+        ux      = (mu1**2 * rho1 * W1 * vx1 + mu2**2 * rho2 * W2 * vx2) / \
+                  (mu1**2 * rho1 + mu2**2 * rho2)
+        uy      = (mu1**2 * rho1 * W1 * vy1 + mu2**2 * rho2 * W2 * vy2) / \
+                  (mu1**2 * rho1 + mu2**2 * rho2)
+        uz      = (mu1**2 * rho1 * W1 * vz1 + mu2**2 * rho2 * W2 * vz2) / \
+                  (mu1**2 * rho1 + mu2**2 * rho2)
+        rhoCh0  = W * rhoCh - (Jx * ux + Jy * uy + Jz * uz)
+                
+        
+        aux[:] = h1, W1, e1, vsq1, Z1, vE1, D1, Stildex1, Stildey1, Stildez1, tauTilde1, \
+                 h2, W2, e2, vsq2, Z2, vE2, D2, Stildex2, Stildey2, Stildez2, tauTilde2, \
+                 Bsq, Esq, \
+                 Jx, Jy, Jz, \
+                 Stildex, Stildey, Stildez, \
+                 tauTilde, \
+                 rhoCh, rhoCh0, \
+                 ux, uy, uz, W
+                 
+        prims[:] = rho1, vx1, vy1, vz1, p1, \
+                   rho2, vx2, vy2, vz2, p2, \
+                   Bx, By, Bz, Ex, Ey, Ez
+        alpha = 1
 
-        return Z1, Z2
+        return prims, aux, alpha
         
     
     def getConsFromPrims(self, prims):
@@ -257,7 +305,7 @@ class TwoFluidEMHD(object):
         Sbarx       = mu1 * Z1 * vx1 + mu2 * Z2 * vx2
         Sbary       = mu1 * Z1 * vy1 + mu2 * Z2 * vy2
         Sbarz       = mu1 * Z1 * vz1 + mu2 * Z2 * vz2
-        tauBar      = mu1 * Z1 / W1 - mu1 * p1 + mu2 * Z2 / W2 - mu2 * p2
+        tauBar      = mu1 * Z1 - mu1 * p1 - mu1*D1 + mu2 * Z2 - mu2 * p2 - mu2*D2
         Stildex1    = Z1 * vx1
         Stildex2    = Z2 * vx2
         Stildey1    = Z1 * vy1
