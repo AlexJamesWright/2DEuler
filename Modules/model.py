@@ -175,14 +175,12 @@ class TwoFluidEMHD(object):
             W = 1 / np.sqrt(1 - vsq)
             rho = DFluid / W
             h = Z / (rho * W**2)
-            p = (self.g - 1) * (h - rho) / self.g
-            
+            p = (self.g - 1) * (h - rho) / self.g            
             if Z < 0 or rho < 0 or p < 0 or W < 1 or h < 1:
                 return 1e6
             else:
-#                resid = (1 - (self.g - 1)/(W**2*self.g)) * Z + \
-#                           ((self.g - 1)/(W*self.g) - 1)*DFluid - tauTildeFluid
-                resid = Z - (rho + (self.g / self.g - 1) * p) * W ** 2
+                resid = (1 - (self.g - 1)/(W**2*self.g)) * Z + \
+                           ((self.g - 1)/(W*self.g) - 1)*DFluid - tauTildeFluid
                 return resid
         
         
@@ -195,8 +193,7 @@ class TwoFluidEMHD(object):
                 Z2[i, j] = newton(residual, x0=sim.aux[15, i, j]*0.95, args=(Stilde2sq[i, j], D2[i, j], tauTilde2[i, j], i, j))
 
 
-        print(Z1[3, 3])
-        print(sim.aux[4, 3, 3])
+
 
         return Z1, Z2
         
@@ -219,7 +216,7 @@ class TwoFluidEMHD(object):
         rho1, vx1, vy1, vz1, p1, rho2, vx2, vy2, \
         vz2, p2, Bx, By, Bz, Ex, Ey, Ez = prims
         
-        vsq1        = vx1**2 + vy1**2 + vz1**1
+        vsq1        = vx1**2 + vy1**2 + vz1**2
         vsq2        = vx2**2 + vy2**2 + vz2**2
         W1          = 1 / np.sqrt(1 - vsq1)
         W2          = 1 / np.sqrt(1 - vsq2)
@@ -231,7 +228,7 @@ class TwoFluidEMHD(object):
         e1          = p1 / (rho1 * (self.g - 1))
         e2          = p2 / (rho2 * (self.g - 1))
         h1          = 1 + e1 + p1 / rho1
-        h2          = 1 + e2 + p1 / rho2
+        h2          = 1 + e2 + p2 / rho2
         Z1          = rho1 * h1 * W1**2
         Z2          = rho2 * h2 * W2**2
         vE1         = vx1*Ex + vy1*Ey + vz1*Ez
@@ -255,7 +252,7 @@ class TwoFluidEMHD(object):
         Sx          = Z1 * vx1 + Z2 * vx2 + EcrossBx
         Sy          = Z1 * vy1 + Z2 * vy2 + EcrossBy
         Sz          = Z1 * vz1 + Z2 * vz2 + EcrossBz
-        tau         = Z1 / W1 - p1 + Z2 / W2 - p2 + 0.5 * (Esq + Bsq)
+        tau         = Z1 - p1 + Z2 - p2 + 0.5 * (Esq + Bsq) - D
         Dbar        = mu1 * rho1 * W1 + mu2 * rho2 * W2
         Sbarx       = mu1 * Z1 * vx1 + mu2 * Z2 * vx2
         Sbary       = mu1 * Z1 * vy1 + mu2 * Z2 * vy2
