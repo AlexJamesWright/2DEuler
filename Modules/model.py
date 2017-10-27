@@ -170,17 +170,19 @@ class TwoFluidEMHD(object):
                     Value of tauTilde for this fluid
             """
             vsq = StildesqFluid / Z**2
+            if (vsq >= 1):
+                return 1e6
             W = 1 / np.sqrt(1 - vsq)
             rho = DFluid / W
             h = Z / (rho * W**2)
             p = (self.g - 1) * (h - rho) / self.g
             
-            if vsq >= 1 or Z < 0 or rho < 0 or p < 0 or W < 1 or h < 1:
+            if Z < 0 or rho < 0 or p < 0 or W < 1 or h < 1:
                 return 1e6
             else:
 #                resid = (1 - (self.g - 1)/(W**2*self.g)) * Z + \
 #                           ((self.g - 1)/(W*self.g) - 1)*DFluid - tauTildeFluid
-                resid = Z - rho * h * W**2
+                resid = Z - (rho + (self.g / self.g - 1) * p) * W ** 2
                 return resid
         
         
@@ -188,9 +190,9 @@ class TwoFluidEMHD(object):
         for i in range(Nx):
             for j in range(Ny):
                 # Fluid 1
-                Z1[i, j] = newton(residual, x0=sim.aux[4, i, j], args=(Stilde1sq[i, j], D1[i, j], tauTilde1[i, j], i, j))
+                Z1[i, j] = newton(residual, x0=sim.aux[4, i, j]*0.95, args=(Stilde1sq[i, j], D1[i, j], tauTilde1[i, j], i, j))
                 # Fluid 2
-                Z2[i, j] = newton(residual, x0=sim.aux[15, i, j], args=(Stilde2sq[i, j], D2[i, j], tauTilde2[i, j], i, j))
+                Z2[i, j] = newton(residual, x0=sim.aux[15, i, j]*0.95, args=(Stilde2sq[i, j], D2[i, j], tauTilde2[i, j], i, j))
 
 
         print(Z1[3, 3])
