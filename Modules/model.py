@@ -94,8 +94,125 @@ class TwoFluidEMHD(object):
         self.Naux = 37
         self.flux = self.fluxFunc
         
-    def fluxFunc(self, q, sim):
-        pass
+    def fluxFunc(self, q, simulation, direction):
+        """
+        Generates the approximate values (second order accurate) of the flux
+        vector at the cell faces, using the flux vector splitting method of Shu '97
+        'Essentially non-oscillatory and weighted essentially...". 
+            The form of the fluxes has been taken from Amano '16 (but altered 
+        to agree with Kiki's notation and conservative form). 
+        """
+        # Short hand
+        mu1 = self.mu1
+        mu2 = self.mu2
+        Nx, Ny =  q[0, :, :].shape
+        order = 2   # Hard code weno order
+        
+        # Update primitives
+        prims, aux, alpha = self.getPrimitiveVars(q, simulation)
+        
+        # Cons
+        D, Sx, Sy, Sz, tau, Dbar, Sbarx, Sbary, Sbarz, \
+        tauBar, Bx, By, Bz, Ex, Ey, Ez, psi, phi = q
+        # Aux
+        h1, W1, e1, vsq1, Z1, vE1, D1, Stildex1, Stildey1, Stildez1, tauTilde1, \
+        h2, W2, e2, vsq2, Z2, vE2, D2, Stildex2, Stildey2, Stildez2, tauTilde2, \
+        Bsq, Esq, \
+        Jx, Jy, Jz, \
+        Stildex, Stildey, Stildez, \
+        tauTilde, \
+        rhoCh, rhoCh0, \
+        ux, uy, uz, W = aux[:]
+        # Prims
+        rho1, vx1, vy1, vz1, p1, rho2, vx2, vy2,\
+        vz2, p2, Bx, By, Bz, Ex, Ey, Ez = prims[:]
+        
+        
+        # Generate flux vector
+        f = np.zeros_like(q)
+        if direction == 0:
+            f[0] = D1 * vx1 + D2 * vx2
+            f[1] = Z1 * vx1 * vx1 + p1 + \
+                   Z2 * vx2 * vx2 + p1 - (Ex * Ex + Bx * Bx) + 0.5 * (Esq + Bsq)
+            f[2] = Z1 * vy1 * vx1      + \
+                   Z2 * vy2 * vx2      - (Ey * Ex + By * Bx)
+            f[3] = Z1 * vz1 * vx1      + \
+                   Z2 * vz2 * vx2      - (Ez * Ex + Bz * Bx)
+            f[4] = Sx - (D1 * vx1 + D2 * vx2)
+            f[5] = mu1 * D1 * vx1 + mu2 * D2 * vx2
+            f[6] = mu1 * Z1 * vx1 * vx1 + mu1 * p1 + \
+                   mu2 * Z2 * vx2 * vx2 + mu2 * p2
+            f[7] = mu1 * Z1 * vx1 * vy1 + \
+                   mu2 * Z2 * vx2 * vy2
+            f[8] = mu1 * Z1 * vx1 * vz1 + \
+                   mu2 * Z2 * vx2 * vz2
+            f[9] = (Z1 - mu1 * D1) * W1 * vx1 + \
+                   (Z2 - mu2 * D2) * W2 * vx2
+            f[10] = phi
+            f[11] = -Ez
+            f[12] = Ey
+            f[13] = psi
+            f[14] = Bz
+            f[15] = -By
+            f[16] = Ex
+            f[17] = Bx
+        
+        else:
+            f[0] = D1 * vy1 + D2 * vy2
+            f[1] = Z1 * vx1 * vy1       + \
+                   Z2 * vx2 * vy2      - (Ex * Ey + Bx * By)
+            f[2] = Z1 * vy1 * vy1 + p1  + \
+                   Z2 * vy2 * vy2 + p1 - (Ey * Ey + By * By) + 0.5 * (Esq + Bsq)
+            f[3] = Z1 * vz1 * vy1       + \
+                   Z2 * vz2 * vy2      - (Ez * Ey + Bz * By)
+            f[4] = Sy - (D1 * vy1 + D2 * vy2)
+            f[5] = mu1 * D1 * vy1 + mu2 * D2 * vy2
+            f[6] = mu1 * Z1 * vy1 * vx1 + \
+                   mu2 * Z2 * vy2 * vx2
+            f[7] = mu1 * Z1 * vy1 * vy1 + mu1 * p1 + \
+                   mu2 * Z2 * vy2 * vy2 + mu2 * p2
+            f[8] = mu1 * Z1 * vy1 * vz1 + \
+                   mu2 * Z2 * vy2 * vz2
+            f[9] = (Z1 - mu1 * D1) * W1 * vy1 + \
+                   (Z2 - mu2 * D1) * W2 * vy2
+            f[10] = Ez
+            f[11] = phi
+            f[12] = -Ex
+            f[13] = -Bz
+            f[14] = psi
+            f[15] = Bx
+            f[16] = Ey
+            f[17] = By
+            
+            
+        # Lax-Friedrichs flux splitting
+        fplus = 0.5 * (f + alpha * q)
+        fminus = 0.5 * (f - alpha * q)
+
+        fpr = np.zeros_like(q)
+        fml = np.zeros_like(q)
+        flux = np.zeros_like(q)
+
+        # Reconstruct fluxes
+        if direction == 0:
+            for j in range(q.shape[2]):
+                for i in range(order, q.shape[1]-order):
+                    for Nv in range(q.shape[0]):
+                        fpr[Nv, i, j] = weno_upwind(fplus[Nv, i-order:i+order-1, j], order)
+                        fml[Nv, i, j] = weno_upwind(fminus[Nv, i+order-1:i-order:-1, j], order)
+            flux[:,1:-1] = fpr[:,1:-1] + fml[:,1:-1]
+        else:
+            for i in range(q.shape[1]):		
+                for j in range(order, q.shape[2]-order):		
+                    for Nv in range(q.shape[0]):		
+                         fpr[Nv, i, j] = weno_upwind(fplus[Nv, i, j-order:j+order-1], order)		
+                         fml[Nv, i, j] = weno_upwind(fminus[Nv, i, j+order-1:j-order:-1], order)		
+            flux[:, :, 1:-1] = fpr[:, :, 1:-1] + fml[:, :, 1:-1]
+            
+        return flux
+            
+        
+            
     
     def getPrimitiveVars(self, q, sim):
         """
