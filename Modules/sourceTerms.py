@@ -101,6 +101,7 @@ def twoFluidDivClean(q, prims, aux, cp, eta):
     source[16] = rhoCh - psi / cp**2
     source[17] = -phi / cp**2
     
+    return source
     
     
     
