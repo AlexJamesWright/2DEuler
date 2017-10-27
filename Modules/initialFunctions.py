@@ -98,23 +98,25 @@ class initialFunc(object):
     
     
     
-    def OTVortex(self):
+    def OTVortexSingle(self):
         """
-        Orszang-Tang Vortex: A two dimensional (can be extended to 3D) 
+        Orszang-Tang Vortex: A two dimensional
         magnetohydrodynamic test problem. In the relativistic case we have to 
         ensure that the velocities do not exceed 1. 
         See http://flash.uchicago.edu/site/flashcode/user_support/flash_ug_devel/node178.html
         """
         assert(self.grid.xmin == 0.0 and self.grid.xmax == 1.0), "X E [0, 1]"
         assert(self.grid.ymin == 0.0 and self.grid.ymax == 1.0), "Y E [0, 1]"
+        assert(self.model.Nprims == 9), "OTVortexSingle only valid for single-fluid model"
+
     
         x, y = self.grid.coordinates()
         prims = np.zeros((self.model.Nprims, x.shape[0], y.shape[0]))
         
         
         
-        prims[0, :, :] = 25 / 36 / np.pi
-        prims[4, :, :] = 5 / 12 / np.pi
+        prims[0, :, :] = self.model.g**2 / 4 / np.pi
+        prims[4, :, :] = self.model.g / 4 / np.pi
         
         for i, xelem in enumerate(x):
             prims[2, i, :] = 0.5*np.sin(2 * np.pi * xelem)
@@ -124,6 +126,51 @@ class initialFunc(object):
             prims[1, :, j] = - 0.5*np.sin(2 * np.pi * yelem)
             prims[5, :, j] = - np.sin(2 * np.pi * yelem) / np.sqrt(4*np.pi)
 
+        self.prims = prims
+        cons, self.aux, alpha = self.model.getConsFromPrims(prims)
+        
+        return cons
+
+
+    def OTVortexTwoFluid(self):
+        """
+        Orszang-Tang Vortex: A two dimensional magnetohydrodynamic test problem. 
+        Specifically, this is the set up for the two fluid model TwoFluidEMHD taken
+        from Amano 16 (and refs therein).
+        See "A second-order divergence-constrained multidimensional numerical 
+        scheme for relativistic two-fluid electrodynamics"
+        """
+        assert(self.grid.xmin == 0.0 and self.grid.xmax == 1.0), "X E [0, 1]"
+        assert(self.grid.ymin == 0.0 and self.grid.ymax == 1.0), "Y E [0, 1]"
+        assert(self.model.Nprims == 16), "OTVortexTwoFluid only valid for two-fluid model"
+        x, y = self.grid.coordinates()
+    
+        prims = np.zeros((self.model.Nprims, x.shape[0], y.shape[0]))
+        rho1, vx1, vy1, vz1, p1, rho2, vx2, vy2, vz2, p2, Bx, By, Bz, Ex, Ey, Ez = prims
+
+        
+        rho1[:] = self.model.g**2 / 4 / np.pi
+        rho2[:] = self.model.g**2 / 4 / np.pi
+        p1[:] = self.model.g / 4 / np.pi
+        p2[:] = self.model.g / 4 / np.pi
+        
+        for i, xelem in enumerate(x):
+            vy1[i] = 0.5 * np.cos(2 * np.pi * xelem)
+            vy2[i] = 0.5 * np.cos(2 * np.pi * xelem)
+            By[i] = np.sin(4 * np.pi * xelem) / np.sqrt(4*np.pi)
+            
+        for j, yelem in enumerate(y):
+            vx1[:, j] = - 0.5 * np.sin(2 * np.pi * yelem)
+            vx2[:, j] = - 0.5 * np.sin(2 * np.pi * yelem)
+            Bx[:, j] = - np.sin(2 * np.pi * yelem) / np.sqrt(4*np.pi)
+
+        Ex = vy1 * Bz - vz1 * By
+        Ey = vz1 * Bx - vx1 * Bz
+        Ez = vx1 * By - vy1 * Bx
+        
+        prims[:] = rho1, vx1, vy1, vz1, p1, rho2, vx2, vy2, vz2, p2, Bx, By, Bz, Ex, Ey, Ez
+
+       
         self.prims = prims
         cons, self.aux, alpha = self.model.getConsFromPrims(prims)
         
