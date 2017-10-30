@@ -53,10 +53,10 @@ class TwoFluidEMHD(object):
 
             D       = rho * W
             Si      = rho * h * W**2 * vi + EcrossBi
-            tau     = rho * h * W - p + 0.5 * (Esq + Bsq)
+            tau     = rho * h * W**2 - p + 0.5 * (Esq + Bsq)
             Dbar    = mu * rho * W
             Sbari   = mu * rho * h * W**2 * vi
-            tauBar  = mu * rho * h * W - mu * p
+            tauBar  = mu * rho * h * W**2 - mu * p
 
             We also must consider the primitive and auxilliary variables:
             
@@ -155,7 +155,7 @@ class TwoFluidEMHD(object):
         if direction == 0:
             f[0] = D1 * vx1 + D2 * vx2
             f[1] = Z1 * vx1 * vx1 + p1 + \
-                   Z2 * vx2 * vx2 + p1 - (Ex * Ex + Bx * Bx) + 0.5 * (Esq + Bsq)
+                   Z2 * vx2 * vx2 + p2 - (Ex * Ex + Bx * Bx) + 0.5 * (Esq + Bsq)
             f[2] = Z1 * vy1 * vx1      + \
                    Z2 * vy2 * vx2      - (Ey * Ex + By * Bx)
             f[3] = Z1 * vz1 * vx1      + \
@@ -168,8 +168,7 @@ class TwoFluidEMHD(object):
                    mu2 * Z2 * vx2 * vy2
             f[8] = mu1 * Z1 * vx1 * vz1 + \
                    mu2 * Z2 * vx2 * vz2
-            f[9] = (Z1 - mu1 * D1) * W1 * vx1 + \
-                   (Z2 - mu2 * D2) * W2 * vx2
+            f[9] = mu1 * Z1 * vx1 + mu2 * Z2 * vx2 - (mu1 * D1 * vx1 + mu2 * D2 * vx2)
             f[10] = phi
             f[11] = -Ez
             f[12] = Ey
@@ -184,7 +183,7 @@ class TwoFluidEMHD(object):
             f[1] = Z1 * vx1 * vy1       + \
                    Z2 * vx2 * vy2      - (Ex * Ey + Bx * By)
             f[2] = Z1 * vy1 * vy1 + p1  + \
-                   Z2 * vy2 * vy2 + p1 - (Ey * Ey + By * By) + 0.5 * (Esq + Bsq)
+                   Z2 * vy2 * vy2 + p2 - (Ey * Ey + By * By) + 0.5 * (Esq + Bsq)
             f[3] = Z1 * vz1 * vy1       + \
                    Z2 * vz2 * vy2      - (Ez * Ey + Bz * By)
             f[4] = Sy - (D1 * vy1 + D2 * vy2)
@@ -195,8 +194,7 @@ class TwoFluidEMHD(object):
                    mu2 * Z2 * vy2 * vy2 + mu2 * p2
             f[8] = mu1 * Z1 * vy1 * vz1 + \
                    mu2 * Z2 * vy2 * vz2
-            f[9] = (Z1 - mu1 * D1) * W1 * vy1 + \
-                   (Z2 - mu2 * D1) * W2 * vy2
+            f[9] = mu1 * Z1 * vy1 + mu2 * Z2 * vy2 - (mu1 * D1 * vy1 + mu2 * D2 * vy2)
             f[10] = Ez
             f[11] = phi
             f[12] = -Ex
