@@ -27,7 +27,7 @@ class TwoFluidEMHD(object):
         grid : object
             The domain set up and coordinate information.
         g : float
-            Gamma: the polytropic index - ratio of specific heats of the Fluid
+            Gamma: the adiabatic index - ratio of specific heats of the Fluid
         mu1 : float
             Charge mass ratio of species one
         mu2 : float
