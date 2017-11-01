@@ -9,7 +9,7 @@ from simulation import simulation
 from initialFunctions import initialFunc
 from cells import cells
 from model import TwoFluidEMHD
-from timeEv import eulerSplitRK3
+from timeEv import SSP2
 from boundaryConditions import periodic
 from fluxApprox import fluxSplitting
 from sourceTerms import sources, twoFluidDivClean
@@ -31,14 +31,13 @@ if __name__ == '__main__':
 
     # Set up simulation
     sim = simulation(initFuncObj, initFunc, grid,
-                     model, eulerSplitRK3, periodic, fluxSplitting, source=source,
+                     model, SSP2, periodic, fluxSplitting, source=source,
                      cfl=0.2)
 
     print("Running simulation")
-    sim.runSim(0.1)
-    sim.plotPrimHeatmaps() 
-
-
+#    sim.runSim(0.1)
+#    sim.plotPrimHeatmaps() 
+    sim.runSim(0.0001)
 
 
 
