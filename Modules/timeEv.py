@@ -192,10 +192,34 @@ def SSP2(simulation, q):
         else:
             return resid
 
+    # Generate a better estimate for q2
+    qFlux = q1 + dt * psi1
+    qSource = np.zeros_like(qFlux)
+    def residualSourceOnly(guess, i, j):
+        # Determine primitive variables as a result of the guess
+        if np.any(np.isnan(guess)):
+            return 1e6 * np.ones_like(guess)
+        guessPrim, guessAux, guessAlpha = simulation.model.getPrimitiveVarsSingleCell(guess, simulation, i, j)
+        temp.prims[:, i, j] = guessPrim.reshape(temp.prims[:, i, j].shape)
+        temp.aux[:, i, j] = guessAux.reshape(temp.aux[:, i, j].shape)
+        temp.alpha = guessAlpha
+        psiguess = psi(guess.reshape(q[:, i, j].shape), guessPrim, guessAux, cp=0.1, eta=1/simulation.model.sig).reshape(guess.shape)
+        resid = guess - q[:, i, j].reshape(guess.shape) - dt * (  \
+                (1 - 2 * gamma) * psi1[:, i, j].reshape(guess.shape) + gamma * \
+                psiguess)
+        if np.any(np.isnan(resid)):
+            return 1e6 * np.ones_like(guess)
+        else:
+            return resid
 
     for i in range(Nx):
-        for j in range(Ny):    
-            q2[:, i, j] = fsolve(residualQ2, q1[:, i, j], args=(i, j))
+        for j in range(Ny):
+            qSource[:, i, j] = fsolve(residualSourceOnly, q1[:, i, j], args=(i, j))
+    q2estimate = (qFlux + qSource) / 2
+
+    for i in range(Nx):
+        for j in range(Ny):
+            q2[:, i, j] = fsolve(residualQ2, q2estimate[:, i, j], args=(i, j))
 
     guessPrim, guessAux, guessAlpha = simulation.model.getPrimitiveVars(q2, simulation)
     temp.prims = guessPrim
