@@ -26,19 +26,19 @@ def outflow(q, cells):
         (Nvars, number_of_cells) The value of the convserved variables
         at the centre of each corresponding cell
     """
-    N = cells.Nghosts
+    Ng = cells.Nghosts
     
 
-    for i in range(N):
-        for j in range(N, cells.ny + N):
-            q[:, i, j] = q[:, N, j]
-            q[:, cells.nx + N + i, j] = q[:, cells.nx + N - 1, j]
+    for i in range(Ng):
+        for j in range(cells.Ny):
+            q[:, i, j] = q[:, Ng, j]
+            q[:, cells.nx + Ng + i, j] = q[:, cells.nx + Ng - 1, j]
           
   
-    for i in range(N, cells.nx + N):
-        for j in range(N):
-            q[:, i, j] = q[:, i, N]
-            q[:, i, cells.ny + N + j] = q[:, i, cells.ny + N - 1]
+    for i in range(cells.Nx):
+        for j in range(Ng):
+            q[:, i, j] = q[:, i, Ng]
+            q[:, i, cells.ny + Ng + j] = q[:, i, cells.ny + Ng - 1]
         
     return q
 
@@ -61,17 +61,17 @@ def periodic(q, cells):
         (Nvars, number_of_cells) The value of the convserved variables
         at the centre of each corresponding cell
     """
-    N = cells.Nghosts
+    Ng = cells.Nghosts
 
-    for i in range(N):
-        for j in range(N, cells.ny + N):
-            q[:, i, j] = q[:, -2*N+i, j]
-            q[:, -N+i, j] = q[:, N+i, j]
+    for i in range(Ng):
+        for j in range(cells.Ny):
+            q[:, i, j] = q[:, -2*Ng+i, j]
+            q[:, -Ng+i, j] = q[:, Ng+i, j]
             
-    for i in range(N, cells.nx + N):
-        for j in range(N):
-            q[:, i, j] = q[:, i, -2*N+j]
-            q[:, i, -N+j] = q[:, i, N+j]
+    for i in range(cells.Nx):
+        for j in range(Ng):
+            q[:, i, j] = q[:, i, -2*Ng+j]
+            q[:, i, -Ng+j] = q[:, i, Ng+j]
 
     return q    
 
