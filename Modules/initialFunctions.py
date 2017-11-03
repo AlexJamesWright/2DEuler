@@ -178,10 +178,78 @@ class initialFunc(object):
         return cons
 
 
+    def twoFluidStatic(self):
+        """
+        An equilibrium set up, all vars are constant and should result in 
+        zero flux.
+        """
+        assert(self.model.Nprims == 16), "twoFluidStatic only valid for two-fluid model"
+                
+        x, y = self.grid.coordinates()
 
+        prims = np.zeros((self.model.Nprims, x.shape[0], y.shape[0]))
+        rho1, vx1, vy1, vz1, p1, rho2, vx2, vy2, vz2, p2, Bx, By, Bz, Ex, Ey, Ez = prims
+        
+        rho1[:] = 1.0
+        rho2[:] = 1.0
+        p1[:] = 1.0
+        p2[:] = 1.0
+        Bx[:] = 1.0
+        By[:] = 1.0
+        Bz[:] = 1.0
+        Ex[:] = 1.0
+        Ey[:] = 1.0
+        Ez[:] = 1.0
+        
+        
 
+        prims[:] = rho1, vx1, vy1, vz1, p1, rho2, vx2, vy2, vz2, p2, Bx, By, Bz, Ex, Ey, Ez
 
+        self.prims = prims
+        cons, self.aux, alpha = self.model.getConsFromPrims(prims)
 
+        return cons
+    
+    def twoFluidBrioWu(self):
+        """
+        Generalized  brio wu shock tube test
+        """
+        assert(self.grid.xmin == -0.5 and self.grid.xmax == 0.5), "X E [-0.5, 0.5]"
+        assert(self.model.Nprims == 16), "twoFluidBrioWu only valid for two-fluid model"
+                
+        x, y = self.grid.coordinates()
+        Nx, Ny = x.shape[0], y.shape[0]
+        prims = np.zeros((self.model.Nprims, Nx, Ny))
+        rho1, vx1, vy1, vz1, p1, rho2, vx2, vy2, vz2, p2, Bx, By, Bz, Ex, Ey, Ez = prims
+        
+        for i in range(Nx):
+            rho1[i, :] = 0.5
+            rho2[i, :] = 0.5
+            p1[i, :] = 1.0
+            p2[i, :] = 1.0
+            Bx[i, :] = 0.0
+            By[i, :] = 0.5
+            Bz[i, :] = 0.0
+            Ex[i, :] = 0.0
+            Ey[i, :] = 0.0
+            Ez[i, :] = 0.0
+            
+            rho1[-i-1, :] = 0.075
+            rho2[-i-1, :] = 0.075
+            p1[-i-1, :] = 0.1
+            p2[-i-1, :] = 0.1
+            Bx[-i-1, :] = 0.0
+            By[-i-1, :] = -0.5
+            Bz[-i-1, :] = 0.0
+            Ex[-i-1, :] = 0.0
+            Ey[-i-1, :] = 0.0
+            Ez[-i-1, :] = 0.0
+        
+        
 
+        prims[:] = rho1, vx1, vy1, vz1, p1, rho2, vx2, vy2, vz2, p2, Bx, By, Bz, Ex, Ey, Ez
 
+        self.prims = prims
+        cons, self.aux, alpha = self.model.getConsFromPrims(prims)
 
+        return cons
