@@ -130,6 +130,60 @@ def eulerSplitRK2(simulation, q):
     return qstar + dt * simulation.source(qstar, primstar, auxstar, cp=0.1, eta=1/simulation.model.sig)
 
 
+
+
+def backEulerRK2(simulation, q):
+    """
+    IMEX timestep solver for stiff source terms. Homogeneous equation solved
+    explicitly using Runge-Kutta 2nd order accurate method, source term equation
+    solved implicitly using backwards Euler
+    Parameters
+    ----------
+    simulation: class
+        The class containing all the data regarding the simulation
+    q: numpy array of floats
+        The value of the field at the centre of each corresponding cell
+    Returns
+    -------
+    ans: numpy array of floats
+        The new values of the field
+    """
+    Nx, Ny = q[0].shape
+    dt = simulation.deltaT
+    qstar = RK2(simulation, q)
+    primstar, auxstar, alphastar = simulation.model.getPrimitiveVars(qstar, simulation)
+    
+    def residual(guess, qstr, prmstr, axstr):
+        return guess - qstr.ravel() - dt * simulation.source(qstr, prmstr, axstr, cp=0.1, eta=1/simulation.model.sig).ravel()
+
+    qnext = np.zeros_like(q)
+    qInitGuess = qstar + 0.5*dt*simulation.source(qstar, primstar, auxstar, cp=0.1, eta=1/simulation.model.sig)
+
+    for i in range(Nx):
+        for j in range(Ny):
+            qnext[:, i, j] = fsolve(residual, qInitGuess[:, i, j], args=(qstar[:, i, j], primstar[:, i, j], auxstar[:, i, j]))
+
+
+    return qnext
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 def SSP2(simulation, q):
     """
     (S)trong-(S)tability-(P)reserving (2,2,2) IMEX scheme.
