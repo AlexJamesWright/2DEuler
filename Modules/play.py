@@ -9,8 +9,8 @@ from simulation import simulation
 from initialFunctions import initialFunc
 from cells import cells
 from model import TwoFluidEMHD
-from timeEv import SSP2
-from boundaryConditions import periodic
+from timeEv import backEulerRK2, SSP2
+from boundaryConditions import periodic, outflow
 from fluxApprox import fluxSplitting
 from sourceTerms import sources, twoFluidDivClean
 import numpy as np
@@ -21,23 +21,23 @@ if __name__ == '__main__':
     timeStart = time.time()
 
     # Set up problem
-    grid = cells(30, 30, 0, 1, 0, 1)
+    grid = cells(100, 1, -0.5, 0.5, 0, 1)
     model = TwoFluidEMHD(grid=grid)
     source = sources(twoFluidDivClean)
     # Set initial state
     initFuncObj = initialFunc(grid, model)
-    initFunc = initFuncObj.OTVortexTwoFluid
+    initFunc = initFuncObj.twoFluidBrioWu
 
 
     # Set up simulation
     sim = simulation(initFuncObj, initFunc, grid,
-                     model, SSP2, periodic, fluxSplitting, source=source,
-                     cfl=0.2)
+                     model, backEulerRK2, outflow, fluxSplitting, source=source,
+                     cfl=0.4)
 
     print("Running simulation")
 #    sim.runSim(0.1)
 #    sim.plotPrimHeatmaps() 
-    sim.runSim(0.0001)
+    sim.runSim(0.1)
 
 
 
