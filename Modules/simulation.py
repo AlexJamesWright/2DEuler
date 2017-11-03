@@ -177,17 +177,18 @@ class simulation(object):
         """
         Plots the final field for the primitive variables of the system
         """
-
-        for i in range(self.prims.shape[0]):
+        Nx, Ny = self.prims[0].shape
+        Ng = self.cells.Nghosts
+        for i in range(self.model.Nprims):
             plt.figure()
-            ymin = np.min(self.prims[i, self.cells.Nghosts:-self.cells.Nghosts])
-            ymax = np.max(self.prims[i, self.cells.Nghosts:-self.cells.Nghosts])
+            ymin = np.min(self.prims[i, Ng:-Ng, Ny//2])
+            ymax = np.max(self.prims[i, Ng:-Ng, Ny//2])
             dy = ymax - ymin
             ylower = ymin - 0.05 * dy
             yupper = ymax + 0.05 * dy
             xs, ys = self.cells.realCoordinates()
             plt.plot(xs,
-                    self.prims[i, self.cells.Nghosts:-self.cells.Nghosts])
+                    self.prims[i, Ng:-Ng, Ny//2])
             plt.title(r'Time Evolution for {}: $t = {}$'.format(self.primLabels[i], self.t))
             plt.xlabel(r'$x$')
             plt.ylabel(r'$q_{}(x)$'.format(i+1))
