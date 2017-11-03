@@ -12,7 +12,7 @@ warnings.filterwarnings('ignore', 'The iteration is not making good progress')
 #############################################################################
 
 class TwoFluidEMHD(object):
-    def __init__(self, grid, g=5/3, mu1=-1, mu2=1, sig=1e3, kappa=1):
+    def __init__(self, grid, g=5/3, mu1=-1e4, mu2=1e4, sig=1e3, kappa=100):
         """
         Two Fluid ElectroMagnetoHydroDynamics
         The two fluid model for plasmas in the special relativistic limit. Model
