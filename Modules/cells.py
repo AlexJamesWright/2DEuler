@@ -34,6 +34,8 @@ class cells(object):
         self.nx = nx
         self.ny = ny
         self.Nghosts = Nghosts
+        self.Nx = nx + 2*Nghosts
+        self.Ny = ny + 2*Nghosts
 
     def coordinates(self):
         """
