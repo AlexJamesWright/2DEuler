@@ -154,10 +154,10 @@ def backEulerRK2(simulation, q):
     primstar, auxstar, alphastar = simulation.model.getPrimitiveVars(qstar, simulation)
     
     def residual(guess, qstr, prmstr, axstr):
-        return guess - qstr.ravel() - dt * simulation.source(qstr, prmstr, axstr, cp=0.1, eta=1/simulation.model.sig).ravel()
+        return guess - qstr.ravel() - dt * simulation.source(qstr, prmstr, axstr, cp=1/simulation.model.kappa, eta=1.0/simulation.model.sig).ravel()
 
     qnext = np.zeros_like(q)
-    qInitGuess = qstar + 0.5*dt*simulation.source(qstar, primstar, auxstar, cp=0.1, eta=1/simulation.model.sig)
+    qInitGuess = qstar + 0.5*dt*simulation.source(qstar, primstar, auxstar, cp=1/simulation.model.kappa, eta=1.0/simulation.model.sig)
 
     for i in range(Nx):
         for j in range(Ny):
