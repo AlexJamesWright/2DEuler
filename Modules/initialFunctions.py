@@ -8,31 +8,37 @@ import numpy as np
 
 
 class initialFunc(object):
-    def __init__(self, grid, model=None, primL=None, primR=None):
+    def __init__(self, grid, model=None, direction=0, primL=None, primR=None):
         """
         Class that stores the functional forms of the initial field
 
         Parameters
         ----------
-        grid: object
+        grid : object
             A cell object, simulation.cells, containing the information about
             the system's grid construction
-        model: object (optional)
+        model : object (optional)
             simulation.model object containing onfo about the type of problem,
-            i.e. the equations we are solving (Advection, Euler eqns etc)
+            i.e. the equations we are solving (Advection, Euler eqns etc).
+            Defaults to None.
+        direction : int (optional)
+            Where possible, defines the direction of the initial set up. E.g. for
+            twoFluidBrioWu sets the discontinuity along the dir axis, where
+            dir = [0, 1] = [x, y]. Defaults to x-axis
         tau: float (optional)
             The relaxation time of the source term - only meaningful if there
             is a source term
-        primL: array of float (optional)
+        primL : array of float (optional)
             (Nvars,) The initial data of the primative variables on the left
-            side of the system
-        primR: array of float (optional)
+            side of the system. Defaults to None.
+        primR : array of float (optional)
             (Nvars,) The initial data of the primative variables on the right
-            side of the system
+            side of the system.  Defaults to None.
         """
         self.prims = None
         self.aux = None
         self.model = model
+        self.direction = direction
         self.grid = grid
         self.primL = primL
         self.primR = primR
@@ -222,29 +228,39 @@ class initialFunc(object):
         prims = np.zeros((self.model.Nprims, Nx, Ny))
         rho1, vx1, vy1, vz1, p1, rho2, vx2, vy2, vz2, p2, Bx, By, Bz, Ex, Ey, Ez = prims
         
-        for i in range(Nx):
-            rho1[i, :] = 0.5
-            rho2[i, :] = 0.5
-            p1[i, :] = 1.0
-            p2[i, :] = 1.0
-            Bx[i, :] = 0.0
-            By[i, :] = 0.5
-            Bz[i, :] = 0.0
-            Ex[i, :] = 0.0
-            Ey[i, :] = 0.0
-            Ez[i, :] = 0.0
+        endX = Nx - 1
+        endY = Ny - 1
+        facX = 1
+        facY = 1
+        if (self.direction == 0):
+            facX = 2
+            lBx = 0.5
+            rBx = 0.5
+            lBy = 1.0
+            rBy = -1.0
+        else:
+            facY = 2
+            lBy = 0.5
+            rBy = 0.5
+            lBx = 1.0
+            rBx = -1.0
             
-            rho1[-i-1, :] = 0.075
-            rho2[-i-1, :] = 0.075
-            p1[-i-1, :] = 0.1
-            p2[-i-1, :] = 0.1
-            Bx[-i-1, :] = 0.0
-            By[-i-1, :] = -0.5
-            Bz[-i-1, :] = 0.0
-            Ex[-i-1, :] = 0.0
-            Ey[-i-1, :] = 0.0
-            Ez[-i-1, :] = 0.0
         
+        for i in range(Nx//facX):
+            for j in range(Ny//facY):
+                rho1[i, j] = 0.5
+                rho2[i, j] = 0.5
+                p1[i, j] = 1.0
+                p2[i, j] = 1.0
+                Bx[i, j] = lBx
+                By[i, j] = lBy
+                
+                rho1[endX - i, endY - j] = 0.075
+                rho2[endX - i, endY - j] = 0.075
+                p1[endX - i, endY - j] = 0.1
+                p2[endX - i, endY - j] = 0.1
+                Bx[endX - i, endY - j] = rBx
+                By[endX - i, endY - j] = rBy
         
 
         prims[:] = rho1, vx1, vy1, vz1, p1, rho2, vx2, vy2, vz2, p2, Bx, By, Bz, Ex, Ey, Ez
