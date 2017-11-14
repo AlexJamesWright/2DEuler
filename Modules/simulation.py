@@ -173,24 +173,41 @@ class simulation(object):
 #            plt.savefig('Figures/ViolateCharacteristicSSP3{}.pdf'.format(self.consLabels[i]))
             plt.show()
 
-    def plotPrimitives(self):
+    def plotPrimitives(self, direction=0):
         """
         Plots the final field for the primitive variables of the system
+        
+        Parameters
+        ----------
+            direction : int (optional)
+                Axis along which to plot variables. direction = [0, 1] = [x, y]
+                Defaults to x-axis
         """
+
         Nx, Ny = self.prims[0].shape
         Ng = self.cells.Nghosts
+        xs, ys = self.cells.realCoordinates()
+        
+        if direction==0:
+            horiz = xs
+            plotVars = self.prims[:, Ng:-Ng, Ny//2]
+            horixLabel=r'$x$'
+        else:
+            horiz = ys
+            plotVars = self.prims[:, Nx//2, Ng:-Ng]
+            horixLabel=r'$y$'
+        
         for i in range(self.model.Nprims):
             plt.figure()
-            ymin = np.min(self.prims[i, Ng:-Ng, Ny//2])
-            ymax = np.max(self.prims[i, Ng:-Ng, Ny//2])
+            ymin = np.min(plotVars[i])
+            ymax = np.max(plotVars[i])
             dy = ymax - ymin
             ylower = ymin - 0.05 * dy
             yupper = ymax + 0.05 * dy
-            xs, ys = self.cells.realCoordinates()
-            plt.plot(xs,
-                    self.prims[i, Ng:-Ng, Ny//2])
+            
+            plt.plot(horiz, plotVars[i])
             plt.title(r'Time Evolution for {}: $t = {}$'.format(self.primLabels[i], self.t))
-            plt.xlabel(r'$x$')
+            plt.xlabel(horixLabel)
             plt.ylabel(r'$q_{}(x)$'.format(i+1))
             plt.ylim((ylower, yupper))
             plt.legend(loc='lower center', fontsize=10)
