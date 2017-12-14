@@ -9,7 +9,7 @@ import numpy as np
 
 
 class sources(object):
-    def __init__(self, sourceType):
+    def __init__(self, sourceType, mu1, mu2):
         """
         Parameters
         ----------
@@ -26,19 +26,21 @@ class sources(object):
         self.slowSource = 0
         if self.sourceType is divCleaning:
             self.slowSource = 1
+        self.mu1 = mu1
+        self.mu2 = mu2
 
     def sourceF(self, q, prims=None, aux=None, cp=None, eta=None):
-        return self.sourceType(q, prims, aux, cp, eta)
+        return self.sourceType(q, prims, aux, cp, eta, self.mu1, self.mu2)
 
 
 
-def noSource(q, prims, aux, cp, eta):
+def noSource(q, prims, aux, cp, eta, mu1, mu2):
     """
     No source term - used for homogeneous field equations
     """
     return np.zeros_like(q)
 
-def divCleaning(q, prims, aux, cp, eta):
+def divCleaning(q, prims, aux, cp, eta, mu1, mu2):
     """
     If doing multi-dimensional MHD, need to ensure divergence free magnetic field
     using div-cleaning - requires source to unphysical phi field. Should be a slow
@@ -55,7 +57,7 @@ def divCleaning(q, prims, aux, cp, eta):
     source[8] = -q[8] / cp**2
     return source
 
-def twoFluidDivClean(q, prims, aux, cp, eta):
+def twoFluidDivClean(q, prims, aux, cp, eta, mu1, mu2):
     """
     """
     
@@ -79,6 +81,9 @@ def twoFluidDivClean(q, prims, aux, cp, eta):
     # Prims
     rho1, vx1, vy1, vz1, p1, rho2, vx2, vy2,\
     vz2, p2, Bx, By, Bz, Ex, Ey, Ez = prims[:]
+    
+    # Plasma freq
+    wpsq = mu1**2*rho1 + mu2**2*rho2
 
     source = np.zeros_like(q)
     
@@ -88,10 +93,10 @@ def twoFluidDivClean(q, prims, aux, cp, eta):
     source[3] = 0
     source[4] = 0
     source[5] = 0
-    source[6] = W * Ex + (uy * Bz - uz * By) - eta * (Jx - rhoCh0 * ux)
-    source[7] = W * Ey + (uz * Bx - ux * Bz) - eta * (Jy - rhoCh0 * uy)
-    source[8] = W * Ez + (ux * By - uy * Bx) - eta * (Jz - rhoCh0 * uz)
-    source[9] = ux * Ex + uy * Ey + uz * Ez - eta * (rhoCh - rhoCh0 * W)
+    source[6] = wpsq * (W * Ex + (uy * Bz - uz * By) - eta * (Jx - rhoCh0 * ux))
+    source[7] = wpsq * (W * Ey + (uz * Bx - ux * Bz) - eta * (Jy - rhoCh0 * uy))
+    source[8] = wpsq * (W * Ez + (ux * By - uy * Bx) - eta * (Jz - rhoCh0 * uz))
+    source[9] = wpsq * (ux * Ex + uy * Ey + uz * Ez - eta * (rhoCh - rhoCh0 * W))
     source[10] = 0
     source[11] = 0
     source[12] = 0
