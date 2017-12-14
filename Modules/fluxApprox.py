@@ -26,16 +26,19 @@ def fluxSplitting(q, simulation):
         netFlux[i] is the total flux through cell[i]
     """
     fluxX = simulation.model.flux(q, simulation, 0)
-    fluxY = simulation.model.flux(q, simulation, 1)
     netFlux = np.zeros_like(fluxX)
     netFluxX = np.zeros_like(fluxX)
     netFluxY = np.zeros_like(fluxX)
     
-    netFluxX[:, 1:-1, :] = (fluxX[:, 2:, :] - fluxX[:, 1:-1, :]) / simulation.deltaX
-    netFluxY[:, :, 1:-1] = (fluxY[:, :, 2:] - fluxY[:, :, 1:-1]) / simulation.deltaY  
+    if simulation.cells.Ny > 1:
+        fluxY = simulation.model.flux(q, simulation, 1)
+        netFluxX[:, 1:-1, :] = (fluxX[:, 2:, :] - fluxX[:, 1:-1, :]) / simulation.deltaX
+        netFluxY[:, :, 1:-1] = (fluxY[:, :, 2:] - fluxY[:, :, 1:-1]) / simulation.deltaY  
+    else:
+        netFluxX[:, 1:-1, :] = (fluxX[:, 2:, :] - fluxX[:, 1:-1, :]) / simulation.deltaX
+
+
     netFlux = netFluxX + netFluxY
-
-
 
     return netFlux
 
