@@ -5,6 +5,7 @@ script that stores the functional form of the initial fields
 """
 
 import numpy as np
+import scipy
 
 
 class initialFunc(object):
@@ -269,3 +270,100 @@ class initialFunc(object):
         cons, self.aux, alpha = self.model.getConsFromPrims(prims)
 
         return cons
+    
+    def twoFluidCurrentSheet(self):
+        """
+        Self similar current sheet for EP plasma
+        """
+        assert(self.grid.xmin == -1.5 and self.grid.xmax == 1.5), "X E [-1.5, 1.5]"
+        assert(self.model.Nprims == 16), "twoFluidCurrentSheet only valid for two-fluid model"
+                
+        x, y = self.grid.coordinates()
+        Nx, Ny = x.shape[0], y.shape[0]
+        prims = np.zeros((self.model.Nprims, Nx, Ny))
+        rho1, vx1, vy1, vz1, p1, rho2, vx2, vy2, vz2, p2, Bx, By, Bz, Ex, Ey, Ez = prims
+        
+        RHO = 1.0
+        B0 = 1.0
+        P = 50.0
+        
+        tmp1 = (B0 / (self.model.mu1 * RHO * np.sqrt(np.pi / self.model.sig))) * np.exp(- x**2 * self.model.sig / 4.0)
+        tmp2 = (B0 / (self.model.mu2 * RHO * np.sqrt(np.pi / self.model.sig))) * np.exp(- x**2 * self.model.sig / 4.0)
+        for j in range(Ny):
+            vz1[:, j] = (tmp1 / np.sqrt(1 - tmp1**2))
+            vz2[:, j] = tmp2 / np.sqrt(1 - tmp2**2)
+            By[:, j] = B0 * np.sign(x)*scipy.special.erf(0.5 * np.sqrt(self.model.sig * x ** 2))
+
+
+        rho1[:] = RHO / 2.0
+        p1[:] = P / 2.0
+        rho2[:] = RHO / 2.0 
+        p2[:] = P / 2.0
+        
+        
+        
+        prims[:] = rho1, vx1, vy1, vz1, p1, rho2, vx2, vy2, vz2, p2, Bx, By, Bz, Ex, Ey, Ez
+        self.prims = prims
+        cons, self.aux, alpha = self.model.getConsFromPrims(prims)
+        
+        return cons
+    
+    def twoFluidCPAlfven(self):
+        assert(self.model.Nprims == 16), "twoFluidCPAlfven only valid for two-fluid model"
+        assert(self.grid.xmin == 0 and self.grid.xmax == 8 * np.pi), "boundaries should be x E [0, 8Pi]"
+#        assert(self.grid.ny == 0), "Must be one dimensional"
+        assert(abs(self.model.mu1) == np.sqrt(1.04) and abs(self.model.mu2)==np.sqrt(1.04)), "Charge mass ratio should be sqrt(1.04)"
+        
+        x, y = self.grid.coordinates()
+        Nx, Ny = x.shape[0], y.shape[0]
+        prims = np.zeros((self.model.Nprims, Nx, Ny))
+        rho1, vx1, vy1, vz1, p1, rho2, vx2, vy2, vz2, p2, Bx, By, Bz, Ex, Ey, Ez = prims
+
+        
+        B0 = 1.04
+        omegaBar1 = -np.sqrt(1.04)
+        omegaBar2 = - omegaBar1
+        kx = 1.0/4.0
+        omega = 5.63803828148e-1
+        Wp = 5.19940020571e-6 + 1
+        We = 6.68453076522e-5 + 1
+        Tom = 10**-2
+        xsi = 0.01
+        U1 = -xsi * omega * omegaBar1 / (kx * (omega + omegaBar1/We))
+        U2 = -xsi * omega * omegaBar2 / (kx * (omega + omegaBar2/Wp))
+        
+        for j in range(Ny):
+            phi = kx * x
+            
+            # Density and pressure
+            rho1[:, j] = 1.0 / We
+            p1[:, j] = Tom * rho1[:, j]
+            rho2[:, j] = 1.0 / Wp
+            p2[:, j] = Tom * rho2[:, j]
+            
+            # Magnetic fields
+            Bx[:, j] = B0 
+            By[:, j] = xsi * B0 * np.cos(phi)
+            Bz[:, j] = -xsi * B0 * np.sin(phi)
+            
+            # Electric fields
+            Ey[:, j] = - (omega / kx) * xsi * B0 * np.sin(phi)
+            Ez[:, j] = - (omega / kx) * xsi * B0 * np.cos(phi)
+            
+            # vy1, vz1, vy2, vz2
+            vy1[:, j] = U1 * np.cos(phi) / We
+            vz1[:, j] = - U1 * np.sin(phi) / We
+            vy2[:, j] = U2 * np.cos(phi) / Wp
+            vz2[:, j] = - U2 * np.sin(phi) / Wp
+            
+            
+        prims[:] = rho1, vx1, vy1, vz1, p1, rho2, vx2, vy2, vz2, p2, Bx, By, Bz, Ex, Ey, Ez
+        self.prims = prims
+        cons, self.aux, alpha = self.model.getConsFromPrims(prims)
+        
+        
+        
+        return cons
+        
+        
+        
