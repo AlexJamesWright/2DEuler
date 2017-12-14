@@ -85,7 +85,12 @@ class simulation(object):
         updateTime increments the simulation by the initialised timestep, and
         updates the field values of all the cells
         """
-        self.deltaT = self.cfl / (1/self.deltaX + 1/self.deltaY)
+        
+        print("t = {}".format(self.t))
+        dtx = self.cfl * self.cells.deltaX / np.sqrt(3)
+        dty = self.cfl * self.cells.deltaY / np.sqrt(3)
+        self.deltaT = min(dtx, dty)
+
         if self.iters < 5:
             self.deltaT *= 0.1
         if self.t + self.deltaT > endTime:
@@ -111,7 +116,6 @@ class simulation(object):
         self.prims, self.aux, self.alpha = self.getPrims(self.q)
         self.alpha=1
         while self.t < endTime:
-            print("t = {}".format(self.t))
             self.updateTime(endTime)
 
     def updatePrims(self):
@@ -270,3 +274,140 @@ class simulation(object):
         plt.ylabel(r'$y$')
         plt.title(r'Solution for {}'.format(self.primLabels[0]))
         plt.show()
+        
+    def plotTwoFluidCPAlfvenWaveAgainstExact(self):
+        """
+        The cirularly polarized alfven wave has an exact solution, see Amano 2016
+        for details. This method plots all non-trivial prims against their exact 
+        values for case 3.
+        """
+        prims = self.prims
+        rho1, vx1, vy1, vz1, p1, rho2, vx2, vy2, vz2, p2, Bx, By, Bz, Ex, Ey, Ez = prims[:]
+        c = {'xmin' : self.cells.xmin, 'xmax' : self.cells.xmax, 'nx' : self.cells.nx}
+        xs = np.linspace(c['xmin'], c['xmax'], c['nx'])
+        t = self.t
+        Ng = self.cells.Nghosts
+        
+        h = 1.04
+        B0 = h
+        omegaBar1 = -np.sqrt(1.04)
+        omegaBar2 = -omegaBar1
+        kx = 1.0/4.0
+        
+        omega = 5.63803828148e-1
+        Wp = 5.19940020571e-6 + 1
+        We = 6.68453076522e-5 + 1
+        xsi = 0.01
+        
+        U1 = -xsi * omega * omegaBar1 / (kx * (omega + omegaBar1 * We))
+        U2 = -xsi * omega * omegaBar2 / (kx * (omega + omegaBar2 * Wp))
+        
+        phi = kx * xs - omega * t
+        
+        BySol = xsi * B0 * np.cos(phi)
+        BzSol = -xsi * B0 * np.sin(phi)
+        EySol = -(omega/kx)*xsi*B0*np.sin(phi)
+        EzSol = -(omega/kx)*xsi*B0*np.cos(phi)
+        vy1sol = U1 * np.cos(phi)
+        vz1sol = -U1 * np.sin(phi)
+        vy2sol = U2 * np.cos(phi)
+        vz2sol = -U2 * np.sin(phi)
+        
+        # Bx
+        BxSol = np.zeros_like(BySol)
+        BxSol[:] = B0
+        plt.figure()
+        plt.plot(xs, Bx[Ng:-Ng, 0], label='Numerical')
+        plt.plot(xs, BxSol, '--', label='Exact')
+        plt.title(r'Exact comparison for $B_x$ at $t={}$'.format(t))
+        plt.xlim([c['xmin'], c['xmax']])
+        plt.legend() 
+        # By
+        plt.figure()
+        plt.plot(xs, By[Ng:-Ng, 0], label='Numerical')
+        plt.plot(xs, BySol, '--', label='Exact')
+        plt.title(r'Exact comparison for $B_y$ at $t={}$'.format(t))
+        plt.xlim([c['xmin'], c['xmax']])
+        plt.legend()
+        # By
+        plt.figure()
+        plt.plot(xs, Bz[Ng:-Ng, 0], label='Numerical')
+        plt.plot(xs, BzSol, '--', label='Exact')
+        plt.title(r'Exact comparison for $B_z$ at $t={}$'.format(t))
+        plt.xlim([c['xmin'], c['xmax']])
+        plt.legend()
+        # Ex
+        plt.figure()
+        plt.plot(xs, Ex[Ng:-Ng, 0], label='Numerical')
+        plt.plot(xs, np.zeros_like(xs), '--', label='Exact')
+        plt.title(r'Exact comparison for $E_x$ at $t={}$'.format(t))
+        plt.xlim([c['xmin'], c['xmax']])
+        minn = min(np.min(Ex), 0)
+        maxx = max(np.max(Ex), 0)
+        sep = maxx - minn
+        plt.ylim([minn-0.1*sep, maxx+0.1*sep])
+        plt.legend()
+        # Ey
+        plt.figure()
+        plt.plot(xs, Ey[Ng:-Ng, 0], label='Numerical')
+        plt.plot(xs, EySol, '--', label='Exact')
+        plt.title(r'Exact comparison for $E_y$ at $t={}$'.format(t))
+        plt.xlim([c['xmin'], c['xmax']])
+        plt.legend()
+        # Ez
+        plt.figure()
+        plt.plot(xs, Ez[Ng:-Ng, 0], label='Numerical')
+        plt.plot(xs, EzSol, '--', label='Exact')
+        plt.title(r'Exact comparison for $E_z$ at $t={}$'.format(t))
+        plt.xlim([c['xmin'], c['xmax']])
+        plt.legend()
+        # vx1
+        plt.figure()
+        plt.plot(xs, vx1[Ng:-Ng, 0], label='Numerical')
+        plt.plot(xs, np.zeros_like(xs), '--', label='Exact')
+        plt.title(r'Exact comparison for $v_x1$ at $t={}$'.format(t))
+        plt.xlim([c['xmin'], c['xmax']])
+        minn = min(np.min(vx1), 0)
+        maxx = max(np.max(vx1), 0)
+        sep = maxx - minn
+        plt.ylim([minn-0.1*sep, maxx+0.1*sep])
+        plt.legend()
+        # vy1
+        plt.figure()
+        plt.plot(xs, vy1[Ng:-Ng, 0], label='Numerical')
+        plt.plot(xs, vy1sol, '--', label='Exact')
+        plt.title(r'Exact comparison for $v_y1$ at $t={}$'.format(t))
+        plt.xlim([c['xmin'], c['xmax']])
+        plt.legend()
+        # vz1
+        plt.figure()
+        plt.plot(xs, vz1[Ng:-Ng, 0], label='Numerical')
+        plt.plot(xs, vz1sol, '--', label='Exact')
+        plt.title(r'Exact comparison for $v_z1$ at $t={}$'.format(t))
+        plt.xlim([c['xmin'], c['xmax']])
+        plt.legend()
+        # vx2
+        plt.figure()
+        plt.plot(xs, vx2[Ng:-Ng, 0], label='Numerical')
+        plt.plot(xs, np.zeros_like(xs), '--', label='Exact')
+        plt.title(r'Exact comparison for $v_x2$ at $t={}$'.format(t))
+        plt.xlim([c['xmin'], c['xmax']])
+        minn = min(np.min(vx2), 0)
+        maxx = max(np.max(vx2), 0)
+        sep = maxx - minn
+        plt.ylim([minn-0.1*sep, maxx+0.1*sep])
+        plt.legend()
+        # vy2
+        plt.figure()
+        plt.plot(xs, vy2[Ng:-Ng, 0], label='Numerical')
+        plt.plot(xs, vy2sol, '--', label='Exact')
+        plt.title(r'Exact comparison for $v_y2$ at $t={}$'.format(t))
+        plt.xlim([c['xmin'], c['xmax']])
+        plt.legend()
+        # vz2
+        plt.figure()
+        plt.plot(xs, vz2[Ng:-Ng, 0], label='Numerical')
+        plt.plot(xs, vz2sol, '--', label='Exact')
+        plt.title(r'Exact comparison for $v_z2$ at $t={}$'.format(t))
+        plt.xlim([c['xmin'], c['xmax']])
+        plt.legend()
