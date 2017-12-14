@@ -23,19 +23,29 @@ class cells(object):
             Number of 'ghost' cells either side of xmin and xmax. Higher order
             weno schemes require more ghost cells to eliminate edge effects
         """
+
         self.xmin = xmin
         self.xmax = xmax
         self.ymin = ymin
         self.ymax = ymax
         self.Lx = xmax - xmin
         self.Ly = ymax - ymin
-        self.deltaX = self.Lx / nx
-        self.deltaY = self.Ly / ny
-        self.nx = nx
-        self.ny = ny
         self.Nghosts = Nghosts
+        self.deltaX = self.Lx / nx
+        self.nx = nx
         self.Nx = nx + 2*Nghosts
-        self.Ny = ny + 2*Nghosts
+
+        if (ny==0):
+            self.Ny = 1
+            self.ny = 0
+            self.Ly = np.inf
+            self.deltaY = np.inf
+        else:
+            self.deltaY = self.Ly / ny
+            self.ny = ny
+            self.Ny = ny + 2*Nghosts
+        
+
 
     def coordinates(self):
         """
