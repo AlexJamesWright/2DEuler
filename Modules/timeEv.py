@@ -5,6 +5,7 @@ script stores the timestep solvers e.g. Euler, RK2 etc.
 """
 from scipy.optimize import fsolve
 import numpy as np
+from copy import deepcopy
 
 
 
@@ -47,8 +48,18 @@ def RK2(simulation, q):
     dt = simulation.deltaT
     arg1 = simulation.F(q, simulation)
     p1 = q - dt * arg1
+    p1Prims, p1Aux, p1Alpha = simulation.model.getPrimitiveVars(p1, simulation)
     p1 = simulation.bcs(p1, simulation.cells)
-    arg2 = simulation.F(p1, simulation)
+    p1Aux = simulation.bcs(p1Aux, simulation.cells)
+    p1Prims = simulation.bcs(p1Prims, simulation.cells)
+    p1Sim = deepcopy(simulation)
+    p1Sim.prims[:] = p1Prims[:]
+    p1Sim.aux[:] = p1Aux
+    p1Sim.q[:] = p1[:]
+    
+    
+    arg2 = simulation.F(p1, p1Sim)
+    
     return 0.5 * (q + p1 - dt * arg2)
 
 def RK3(simulation, q):
@@ -152,16 +163,17 @@ def backEulerRK2(simulation, q):
     dt = simulation.deltaT
     qstar = RK2(simulation, q)
     primstar, auxstar, alphastar = simulation.model.getPrimitiveVars(qstar, simulation)
-    
-    def residual(guess, qstr, prmstr, axstr):
-        return guess - qstr.ravel() - dt * simulation.source(qstr, prmstr, axstr, cp=1/simulation.model.kappa, eta=1.0/simulation.model.sig).ravel()
+    def residual(guess, qstr, i, j):
+        primGuess, auxGuess, alphaGuess = simulation.model.getPrimitiveVarsSingleCell(guess, simulation, i, j)
+        return guess - qstr.ravel() - dt * simulation.source(guess, primGuess, auxGuess, cp=1/simulation.model.kappa, eta=1.0/simulation.model.sig).ravel()
 
     qnext = np.zeros_like(q)
-    qInitGuess = qstar + 0.5*dt*simulation.source(qstar, primstar, auxstar, cp=1/simulation.model.kappa, eta=1.0/simulation.model.sig)
+    qInitGuess = qstar + dt*simulation.source(qstar, primstar, auxstar, cp=1/simulation.model.kappa, eta=1.0/simulation.model.sig)
 
     for i in range(Nx):
         for j in range(Ny):
-            qnext[:, i, j] = fsolve(residual, qInitGuess[:, i, j], args=(qstar[:, i, j], primstar[:, i, j], auxstar[:, i, j]))
+            qnext[:, i, j] = fsolve(residual, qInitGuess[:, i, j], args=(qstar[:, i, j], i, j))
+
 
 
     return qnext
