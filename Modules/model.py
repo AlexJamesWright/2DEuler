@@ -12,7 +12,7 @@ warnings.filterwarnings('ignore', 'The iteration is not making good progress')
 #############################################################################
 
 class TwoFluidEMHD(object):
-    def __init__(self, grid, g=5/3, mu1=-1e4, mu2=1e4, sig=1e3, kappa=100):
+    def __init__(self, grid, g=5/3, mu1=-1e4, mu2=1e4, sig=1e3, kappa=1):
         """
         Two Fluid ElectroMagnetoHydroDynamics
         The two fluid model for plasmas in the special relativistic limit. Model
@@ -208,7 +208,8 @@ class TwoFluidEMHD(object):
                    mu2 * Z2 * vy2 * vy2 + mu2 * p2
             f[8] = mu1 * Z1 * vy1 * vz1 + \
                    mu2 * Z2 * vy2 * vz2
-            f[9] = mu1 * Z1 * vy1 + mu2 * Z2 * vy2 - (mu1 * D1 * vy1 + mu2 * D2 * vy2)
+            f[9] = mu1 * Z1 * vy1 + mu2 * Z2 * vy2 - \
+                   (mu1 * D1 * vy1 + mu2 * D2 * vy2)
             f[10] = Ez
             f[11] = phi
             f[12] = -Ex
@@ -242,6 +243,7 @@ class TwoFluidEMHD(object):
                          fpr[Nv, i, j] = weno_upwind(fplus[Nv, i, j-order:j+order-1], order)
                          fml[Nv, i, j] = weno_upwind(fminus[Nv, i, j+order-1:j-order:-1], order)
             flux[:, :, 1:-1] = fpr[:, :, 1:-1] + fml[:, :, 1:-1]
+            
 
         return flux
 
@@ -274,145 +276,18 @@ class TwoFluidEMHD(object):
             alpha : float
                 Max wave speed
         """
-        # Short hand
-        mu1 = self.mu1
-        mu2 = self.mu2
+        
         Nx, Ny =  q[0, :, :].shape
 
         # Initialize variables
         aux = np.zeros((self.Naux, Nx, Ny))
         prims = np.zeros((self.Nprims, Nx, Ny))
-        # Aux
-        h1, W1, e1, vsq1, Z1, vE1, D1, Stildex1, Stildey1, Stildez1, tauTilde1, \
-        h2, W2, e2, vsq2, Z2, vE2, D2, Stildex2, Stildey2, Stildez2, tauTilde2, \
-        Bsq, Esq, \
-        Jx, Jy, Jz, \
-        Stildex, Stildey, Stildez, \
-        tauTilde, \
-        rhoCh, rhoCh0, \
-        ux, uy, uz, W = aux[:]
-        # Prims
-        rho1, vx1, vy1, vz1, p1, rho2, vx2, vy2,\
-        vz2, p2, Bx, By, Bz, Ex, Ey, Ez = prims[:]
-
-        # Cons vars
-        D, Sx, Sy, Sz, tau, Dbar, Sbarx, Sbary, Sbarz, \
-        tauBar, Bx, By, Bz, Ex, Ey, Ez, psi, phi = q[:]
-
-        Bsq = Bx**2 + By**2 + Bz**2
-        Esq = Ex**2 + Ey**2 + Ez**2
-
-        # Remove EM contribution
-        Stildex = Sx - (Ey * Bz - Ez * By)
-        Stildey = Sy - (Ez * Bx - Ex * Bz)
-        Stildez = Sz - (Ex * By - Ey * Bx)
-        tauTilde = tau - 0.5 * (Esq + Bsq)
-
-        # Split the fluid into its constituent species
-        D1 = (Dbar - mu2 * D) / (mu1 - mu2)
-        D2 = (Dbar - mu1 * D) / (mu2 - mu1)
-        Stildex1 = (Sbarx - mu2 * Stildex) / (mu1 - mu2)
-        Stildey1 = (Sbary - mu2 * Stildey) / (mu1 - mu2)
-        Stildez1 = (Sbarz - mu2 * Stildez) / (mu1 - mu2)
-        Stildex2 = (Sbarx - mu1 * Stildex) / (mu2 - mu1)
-        Stildey2 = (Sbary - mu1 * Stildey) / (mu2 - mu1)
-        Stildez2 = (Sbarz - mu1 * Stildez) / (mu2 - mu1)
-        Stilde1sq = Stildex1**2 + Stildey1**2 + Stildez1**2
-        Stilde2sq = Stildex2**2 + Stildey2**2 + Stildez2**2
-        tauTilde1 = (tauBar - mu2 * tauTilde) / (mu1 - mu2)
-        tauTilde2 = (tauBar - mu1 * tauTilde) / (mu2 - mu1)
-
-
-        # We now have everything we need
-        def residual(Z, StildesqFluid, DFluid, tauTildeFluid):
-            """
-            Function to minimize to determine value of guess = Z = rho * h * W * W
-            
-            Parameters
-            ----------
-                Z : float
-                    Estimate of solution, Z = rho * h * W**2
-                StildesqFluid : float
-                    Value of Stildesq for this fluid
-                DFluid : float
-                    Value of D for this fluid
-                tauTildeFluid : float
-                    Value of tauTilde for this fluid
-            """
-            vsq = StildesqFluid / Z**2
-            if (vsq >= 1):
-                return 1e6
-            W = 1 / np.sqrt(1 - vsq)
-            rho = DFluid / W
-            h = Z / (rho * W**2)
-            p = (self.g - 1) * (h - rho) / self.g
-            if Z < 0 or rho < 0 or p < 0 or W < 1 or h < 1:
-                return 1e6
-            else:
-                resid = (1 - (self.g - 1)/(W**2*self.g)) * Z + \
-                           ((self.g - 1)/(W*self.g) - 1)*DFluid - tauTildeFluid
-                return resid
-
-
-        # Loop over all domain cells
+        
         for i in range(Nx):
             for j in range(Ny):
-                # Fluid 1
-                Z1[i, j] = newton(residual, x0=sim.aux[4, i, j], args=(Stilde1sq[i, j], D1[i, j], tauTilde1[i, j]))
-                # Fluid 2
-                Z2[i, j] = newton(residual, x0=sim.aux[15, i, j], args=(Stilde2sq[i, j], D2[i, j], tauTilde2[i, j]))
-
-
-
-        vsq1    = Stilde1sq / Z1**2
-        vsq2    = Stilde2sq / Z2**2
-        W1      = 1 / np.sqrt(1 - vsq1)
-        W2      = 1 / np.sqrt(1 - vsq2)
-        rho1    = D1 / W1
-        rho2    = D2 / W2
-        h1      = Z1 / (rho1 * W1**2)
-        h2      = Z2 / (rho2 * W2**2)
-        e1      = (Z1 / W1**2 - rho1) / (self.g * rho1)
-        e2      = (Z2 / W2**2 - rho2) / (self.g * rho2)
-        p1      = rho1 * e1 * (self.g - 1)
-        p2      = rho2 * e2 * (self.g - 1)
-        vx1     = Stildex1 / Z1
-        vx2     = Stildex2 / Z2
-        vy1     = Stildey1 / Z1
-        vy2     = Stildey2 / Z2
-        vz1     = Stildez1 / Z1
-        vz2     = Stildez2 / Z2
-        vE1     = vx1 * Ex + vy1 * Ey + vz1 * Ez
-        vE2     = vx2 * Ex + vy2 * Ey + vz2 * Ez
-        Jx      = mu1 * rho1 * W1 * vx1 + mu2 * rho2 * W2 * vx2
-        Jy      = mu1 * rho1 * W1 * vy1 + mu2 * rho2 * W2 * vy2
-        Jz      = mu1 * rho1 * W1 * vz1 + mu2 * rho2 * W2 * vz2
-        rhoCh   = mu1 * rho1 * W1 + mu2 * rho2 * W2
-        W       = (mu1**2 * rho1 * W1 + mu2**2 * rho2 * W2) / \
-                  (mu1**2 * rho1 + mu2**2 * rho2)
-        ux      = (mu1**2 * rho1 * W1 * vx1 + mu2**2 * rho2 * W2 * vx2) / \
-                  (mu1**2 * rho1 + mu2**2 * rho2)
-        uy      = (mu1**2 * rho1 * W1 * vy1 + mu2**2 * rho2 * W2 * vy2) / \
-                  (mu1**2 * rho1 + mu2**2 * rho2)
-        uz      = (mu1**2 * rho1 * W1 * vz1 + mu2**2 * rho2 * W2 * vz2) / \
-                  (mu1**2 * rho1 + mu2**2 * rho2)
-        rhoCh0  = W * rhoCh - (Jx * ux + Jy * uy + Jz * uz)
-
-
-        aux[:] = h1, W1, e1, vsq1, Z1, vE1, D1, Stildex1, Stildey1, Stildez1, tauTilde1, \
-                 h2, W2, e2, vsq2, Z2, vE2, D2, Stildex2, Stildey2, Stildez2, tauTilde2, \
-                 Bsq, Esq, \
-                 Jx, Jy, Jz, \
-                 Stildex, Stildey, Stildez, \
-                 tauTilde, \
-                 rhoCh, rhoCh0, \
-                 ux, uy, uz, W
-
-        prims[:] = rho1, vx1, vy1, vz1, p1, \
-                   rho2, vx2, vy2, vz2, p2, \
-                   Bx, By, Bz, Ex, Ey, Ez
-        alpha = 1
-
+                singleq = q[:, i, j]
+                prims[:, i, j], aux[:, i, j], alpha = self.getPrimitiveVarsSingleCell(singleq, sim, i, j)
+        
         return prims, aux, alpha
 
     def getPrimitiveVarsSingleCell(self, q, sim, i, j):
@@ -519,14 +394,10 @@ class TwoFluidEMHD(object):
                            ((self.g - 1)/(W*self.g) - 1)*DFluid - tauTildeFluid
                 return resid
 
-
-
         # Fluid 1
         Z1 = newton(residual, x0=sim.aux[4, i, j], args=(Stilde1sq, D1, tauTilde1))
         # Fluid 2
         Z2 = newton(residual, x0=sim.aux[15, i, j], args=(Stilde2sq, D2, tauTilde2))
-
-
 
         vsq1    = Stilde1sq / Z1**2
         vsq2    = Stilde2sq / Z2**2
@@ -649,10 +520,9 @@ class TwoFluidEMHD(object):
         Stildex     = Stildex1 + Stildex2
         Stildey     = Stildey1 + Stildey2
         Stildez     = Stildez1 + Stildez2
-        tauTilde1   = Z1 / W1
-        tauTilde2   = Z2 / W2
-        tauTilde    = tauTilde1 + tauTilde2
-
+        tauTilde    = tau - 0.5 * (Esq + Bsq)
+        tauTilde1   = Z1 - p1 - D1
+        tauTilde2   = Z2 - p2 - D2
 
         aux[:] = h1, W1, e1, vsq1, Z1, vE1, D1, Stildex1, Stildey1, Stildez1, \
                  tauTilde1, h2, W2, e2, vsq2, Z2, vE2, D2, Stildex2, Stildey2, \
