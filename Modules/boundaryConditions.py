@@ -34,11 +34,11 @@ def outflow(q, cells):
             q[:, i, j] = q[:, Ng, j]
             q[:, cells.nx + Ng + i, j] = q[:, cells.nx + Ng - 1, j]
           
-  
-    for i in range(cells.Nx):
-        for j in range(Ng):
-            q[:, i, j] = q[:, i, Ng]
-            q[:, i, cells.ny + Ng + j] = q[:, i, cells.ny + Ng - 1]
+    if (cells.Ny > 1):
+        for i in range(cells.Nx):
+            for j in range(Ng):
+                q[:, i, j] = q[:, i, Ng]
+                q[:, i, cells.ny + Ng + j] = q[:, i, cells.ny + Ng - 1]
         
     return q
 
@@ -67,11 +67,12 @@ def periodic(q, cells):
         for j in range(cells.Ny):
             q[:, i, j] = q[:, -2*Ng+i, j]
             q[:, -Ng+i, j] = q[:, Ng+i, j]
-            
-    for i in range(cells.Nx):
-        for j in range(Ng):
-            q[:, i, j] = q[:, i, -2*Ng+j]
-            q[:, i, -Ng+j] = q[:, i, Ng+j]
+           
+    if (cells.Ny > 1):
+        for i in range(cells.Nx):
+            for j in range(Ng):
+                q[:, i, j] = q[:, i, -2*Ng+j]
+                q[:, i, -Ng+j] = q[:, i, Ng+j]
 
     return q    
 
